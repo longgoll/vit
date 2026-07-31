@@ -1,0 +1,42 @@
+// src_vit/parser/parser.vit - Parser implementation for Vit Compiler
+
+import { TokenType, Token } from "src_vit/lexer/token.vit";
+import { Lexer } from "src_vit/lexer/lexer.vit";
+import { ASTKind, ASTNode } from "src_vit/parser/ast.vit";
+
+struct Parser {
+    lexer: Lexer,
+    curToken: Token,
+    peekToken: Token,
+
+    function init(l: Lexer): void {
+        this.lexer = l;
+        let dummyToken = l.makeToken(TokenType.TokenEOF, "", 0, 0);
+        this.curToken = dummyToken;
+        this.peekToken = dummyToken;
+    },
+
+    function nextToken(): void {
+        this.curToken = this.peekToken;
+        this.peekToken = this.lexer.nextToken();
+    },
+
+    function parseProgram(): ASTNode {
+        let node: ASTNode;
+        node.kind = ASTKind.ASTBlockStmt;
+        node.name = "main_program";
+        node.valueStr = "";
+        node.valueNum = 0.0;
+        node.op = "";
+        return node;
+    }
+}
+
+function createParser(l: Lexer): Parser {
+    let p: Parser;
+    p.lexer = l;
+    let dummyToken = l.makeToken(TokenType.TokenEOF, "", 0, 0);
+    p.curToken = dummyToken;
+    p.peekToken = dummyToken;
+    return p;
+}

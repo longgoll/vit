@@ -1,0 +1,168 @@
+// src_vit/lexer/lexer.vit - Self-Hosted Lexer implementation
+
+import { TokenType, Token } from "src_vit/lexer/token.vit";
+import { charAt } from "std/string.vit";
+
+struct Lexer {
+    source: string,
+    position: number,
+    readPosition: number,
+    ch: string,
+    line: number,
+    column: number,
+
+    function init(src: string): void {
+        this.source = src;
+        this.position = 0;
+        this.readPosition = 0;
+        this.line = 1;
+        this.column = 0;
+        this.readChar();
+    },
+
+    function readChar(): void {
+        if (this.readPosition >= this.source.length) {
+            this.ch = "";
+        } else {
+            this.ch = charAt(this.source, this.readPosition);
+        }
+        this.position = this.readPosition;
+        this.readPosition = this.readPosition + 1;
+        this.column = this.column + 1;
+    },
+
+    function peekChar(): string {
+        if (this.readPosition >= this.source.length) {
+            return "";
+        }
+        return charAt(this.source, this.readPosition);
+    },
+
+    function skipWhitespace(): void {
+        while (this.ch == " " || this.ch == "\t" || this.ch == "\r" || this.ch == "\n") {
+            if (this.ch == "\n") {
+                this.line = this.line + 1;
+                this.column = 0;
+            }
+            this.readChar();
+        }
+    },
+
+    function isLetter(c: string): boolean {
+        return (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c == "_";
+    },
+
+    function isDigit(c: string): boolean {
+        return c >= "0" && c <= "9";
+    },
+
+    function makeToken(t: TokenType, lex: string, l: number, c: number): Token {
+        let tok: Token;
+        tok.type_ = t;
+        tok.lexeme = lex;
+        tok.line = l;
+        tok.column = c;
+        return tok;
+    },
+
+    function nextToken(): Token {
+        this.skipWhitespace();
+
+        let l = this.line;
+        let c = this.column;
+
+        if (this.ch == "") {
+            return this.makeToken(TokenType.TokenEOF, "", l, c);
+        }
+
+        if (this.ch == "+") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenPlus, "+", l, c);
+        }
+        if (this.ch == "-") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenMinus, "-", l, c);
+        }
+        if (this.ch == "*") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenStar, "*", l, c);
+        }
+        if (this.ch == "/") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenSlash, "/", l, c);
+        }
+        if (this.ch == "(") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenLeftParen, "(", l, c);
+        }
+        if (this.ch == ")") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenRightParen, ")", l, c);
+        }
+        if (this.ch == "{") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenLeftBrace, "{", l, c);
+        }
+        if (this.ch == "}") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenRightBrace, "}", l, c);
+        }
+        if (this.ch == "[") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenLeftBracket, "[", l, c);
+        }
+        if (this.ch == "]") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenRightBracket, "]", l, c);
+        }
+        if (this.ch == ":") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenColon, ":", l, c);
+        }
+        if (this.ch == ";") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenSemicolon, ";", l, c);
+        }
+        if (this.ch == ",") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenComma, ",", l, c);
+        }
+        if (this.ch == ".") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenDot, ".", l, c);
+        }
+        if (this.ch == "?") {
+            this.readChar();
+            return this.makeToken(TokenType.TokenQuestion, "?", l, c);
+        }
+        if (this.ch == "=") {
+            if (this.peekChar() == "=") {
+                this.readChar();
+                this.readChar();
+                return this.makeToken(TokenType.TokenEqualEqual, "==", l, c);
+            }
+            if (this.peekChar() == ">") {
+                this.readChar();
+                this.readChar();
+                return this.makeToken(TokenType.TokenFatArrow, "=>", l, c);
+            }
+            this.readChar();
+            return this.makeToken(TokenType.TokenAssign, "=", l, c);
+        }
+
+        this.readChar();
+        return this.makeToken(TokenType.TokenEOF, "", l, c);
+    }
+}
+
+function createLexer(src: string): Lexer {
+    let l: Lexer;
+    l.source = src;
+    l.position = 0;
+    l.readPosition = 0;
+    l.line = 1;
+    l.column = 0;
+    l.ch = "";
+    l.readChar();
+    return l;
+}

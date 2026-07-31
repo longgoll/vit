@@ -1,0 +1,53 @@
+// src_vit/lexer/token.vit - Token types and Token struct representation
+
+enum TokenType {
+    TokenEOF,
+    TokenIdentifier,
+    TokenNumber,
+    TokenString,
+    
+    // Keywords
+    TokenLet,
+    TokenFunction,
+    TokenReturn,
+    TokenIf,
+    TokenElse,
+    TokenFor,
+    TokenWhile,
+    TokenStruct,
+    TokenEnum,
+    TokenClass,
+    TokenMatch,
+    TokenImport,
+    TokenExtern,
+
+    // Operators & Punctuation
+    TokenPlus,
+    TokenMinus,
+    TokenStar,
+    TokenSlash,
+    TokenAssign,
+    TokenEqualEqual,
+    TokenNotEqual,
+    TokenLessThan,
+    TokenGreaterThan,
+    TokenLeftParen,
+    TokenRightParen,
+    TokenLeftBrace,
+    TokenRightBrace,
+    TokenLeftBracket,
+    TokenRightBracket,
+    TokenColon,
+    TokenSemicolon,
+    TokenComma,
+    TokenDot,
+    TokenFatArrow,
+    TokenQuestion
+}
+
+struct Token {
+    type_: TokenType,
+    lexeme: string,
+    line: number,
+    column: number
+}

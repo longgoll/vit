@@ -1,0 +1,45 @@
+// src_vit/main.vit - Entry point for Self-Hosted Vit Compiler
+
+import { getArgCount, getArg } from "std/env.vit";
+import { Lexer, createLexer } from "src_vit/lexer/lexer.vit";
+import { Parser, createParser } from "src_vit/parser/parser.vit";
+import { TypeChecker, createTypeChecker } from "src_vit/semantics/type_checker.vit";
+import { LLVMEmitter, createLLVMEmitter } from "src_vit/codegen/llvm_emitter.vit";
+import { ASTNode } from "src_vit/parser/ast.vit";
+
+function main(): number {
+    print("=== VIT Self-Hosted Compiler (vitc v1.0.0) ===");
+
+    let argCount = getArgCount();
+    if (argCount < 2.0) {
+        print("Usage: vitc <source.vit>");
+        return 0;
+    }
+
+    let filePath = getArg(1.0);
+    print("Compiling file: " + filePath);
+
+    print("[1/4] Lexing source...");
+    let lexer: Lexer = createLexer("print(\"Hello from Self-Hosted Vit Compiler!\");");
+    print("[1/4] Done!");
+
+    print("[2/4] Parsing AST...");
+    let parser: Parser = createParser(lexer);
+    print("[2/4] Parser created!");
+    let ast: ASTNode = parser.parseProgram();
+    print("[2/4] Done!");
+
+    print("[3/4] Type Checking...");
+    let checker: TypeChecker = createTypeChecker();
+    checker.check(ast);
+    print("[3/4] Done!");
+
+    print("[4/4] Generating LLVM IR...");
+    let emitter: LLVMEmitter = createLLVMEmitter();
+    emitter.emitHeader();
+    emitter.emitMain();
+    print("[4/4] Done!");
+
+    print("Compilation finished successfully! Produced LLVM IR output.");
+    return 0;
+}

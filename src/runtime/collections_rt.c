@@ -211,3 +211,19 @@ const char* __vit_json_escape_string(const char* str) {
     buf[pos] = '\0';
     return buf;
 }
+
+const char* __vit_char_at(const char* str, double index) {
+    if (!str) return "";
+    int idx = (int)index;
+    size_t len = strlen(str);
+    if (idx < 0 || (size_t)idx >= len) return "";
+    char* res = (char*)malloc(2);
+    res[0] = str[idx];
+    res[1] = '\0';
+    return res;
+}
+
+double __vit_strlen(const char* str) {
+    if (!str) return 0.0;
+    return (double)strlen(str);
+}

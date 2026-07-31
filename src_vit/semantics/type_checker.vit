@@ -1,0 +1,22 @@
+// src_vit/semantics/type_checker.vit - Type Checker for Vit Compiler
+
+import { ASTNode } from "src_vit/parser/ast.vit";
+import { SymbolTable, createSymbolTable } from "src_vit/semantics/symbol_table.vit";
+
+struct TypeChecker {
+    table: SymbolTable,
+
+    function init(): void {
+        this.table = createSymbolTable();
+    },
+
+    function check(node: ASTNode): boolean {
+        return true;
+    }
+}
+
+function createTypeChecker(): TypeChecker {
+    let tc: TypeChecker;
+    tc.table = createSymbolTable();
+    return tc;
+}

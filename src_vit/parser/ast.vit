@@ -1,0 +1,21 @@
+// src_vit/parser/ast.vit - AST Node representations for Vit Compiler
+
+enum ASTKind {
+    ASTNumberLiteral,
+    ASTStringLiteral,
+    ASTIdentifier,
+    ASTBinaryExpr,
+    ASTVarDecl,
+    ASTFunctionDecl,
+    ASTBlockStmt,
+    ASTReturnStmt,
+    ASTPrintStmt
+}
+
+struct ASTNode {
+    kind: ASTKind,
+    name: string,
+    valueStr: string,
+    valueNum: number,
+    op: string
+}

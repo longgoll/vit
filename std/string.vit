@@ -1,7 +1,13 @@
 // Standard Library Module for String Utilities in VIT Compiler
 // C Runtime String Interop Declarations
 
-extern function strlen(str: string): number;
-extern function strcmp(str1: string, str2: string): number;
-extern function strcpy(dest: string, src: string): string;
-extern function strcat(dest: string, src: string): string;
+extern function __vit_char_at(str: string, index: number): string;
+extern function __vit_strlen(str: string): number;
+
+function charAt(str: string, index: number): string {
+    return __vit_char_at(str, index);
+}
+
+function stringLength(str: string): number {
+    return __vit_strlen(str);
+}

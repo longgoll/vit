@@ -1,0 +1,32 @@
+// src_vit/semantics/symbol_table.vit - Symbol Table for Vit Compiler
+
+extern function __vit_hashmap_create(): string;
+extern function __vit_hashmap_set(handle: string, key: string, val: string): void;
+extern function __vit_hashmap_get(handle: string, key: string): string;
+extern function __vit_hashmap_has(handle: string, key: string): number;
+extern function __vit_hashmap_free(handle: string): void;
+
+struct SymbolTable {
+    mapHandle: string,
+
+    function init(): void {
+        this.mapHandle = __vit_hashmap_create();
+    },
+
+    function define(name: string, typeInfo: string): void {
+        __vit_hashmap_set(this.mapHandle, name, typeInfo);
+    },
+
+    function lookup(name: string): string {
+        if (__vit_hashmap_has(this.mapHandle, name) == 1.0) {
+            return __vit_hashmap_get(this.mapHandle, name);
+        }
+        return "";
+    }
+}
+
+function createSymbolTable(): SymbolTable {
+    let st: SymbolTable;
+    st.mapHandle = __vit_hashmap_create();
+    return st;
+}
