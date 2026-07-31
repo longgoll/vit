@@ -44,6 +44,9 @@ std::unique_ptr<ProgramASTNode> Parser::parseProgram() {
         if (check(TokenType::KwExtern)) {
             advance(); // Consume 'extern'
             functions.push_back(parseFunctionDecl(true));
+        } else if (check(TokenType::KwAsync)) {
+            advance(); // Consume 'async'
+            functions.push_back(parseFunctionDecl(false, true));
         } else if (check(TokenType::KwFunction)) {
             functions.push_back(parseFunctionDecl(false));
         } else if (check(TokenType::KwStruct)) {
@@ -162,7 +165,11 @@ std::vector<std::string> Parser::parseGenericParams() {
     return params;
 }
 
-std::unique_ptr<FunctionDeclASTNode> Parser::parseFunctionDecl(bool isExtern) {
+std::unique_ptr<FunctionDeclASTNode> Parser::parseFunctionDecl(bool isExtern, bool isAsync) {
+    if (check(TokenType::KwAsync)) {
+        advance();
+        isAsync = true;
+    }
     consume(TokenType::KwFunction, "Expected 'function' keyword.");
     Token nameTok = consume(TokenType::Identifier, "Expected function name.");
 
@@ -185,7 +192,7 @@ std::unique_ptr<FunctionDeclASTNode> Parser::parseFunctionDecl(bool isExtern) {
     }
 
     return std::make_unique<FunctionDeclASTNode>(
-        nameTok.lexeme, std::move(params), returnType, std::move(body), isExtern, std::move(genParams)
+        nameTok.lexeme, std::move(params), returnType, std::move(body), isExtern, std::move(genParams), isAsync
     );
 }
 
@@ -200,7 +207,7 @@ std::unique_ptr<StructDeclASTNode> Parser::parseStructDecl() {
     std::vector<std::unique_ptr<FunctionDeclASTNode>> methods;
 
     while (!check(TokenType::RBrace) && !check(TokenType::TokEof)) {
-        if (check(TokenType::KwFunction)) {
+        if (check(TokenType::KwAsync) || check(TokenType::KwFunction)) {
             methods.push_back(parseFunctionDecl(false));
         } else {
             Token fieldName = consume(TokenType::Identifier, "Expected field name or method declaration.");
@@ -665,6 +672,11 @@ std::unique_ptr<ExpressionNode> Parser::parseUnary() {
         advance();
         auto operand = parseUnary();
         return std::make_unique<UnaryOpASTNode>(opTok.lexeme, std::move(operand));
+    }
+    if (check(TokenType::KwAwait)) {
+        advance(); // Consume 'await'
+        auto operand = parseUnary();
+        return std::make_unique<AwaitExprASTNode>(std::move(operand));
     }
 
     return parsePrimary();

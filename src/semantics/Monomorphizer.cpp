@@ -38,10 +38,104 @@ std::string Monomorphizer::substituteType(const std::string& typeSpec, const std
         std::string base = typeSpec.substr(0, openBracket);
         std::string inner = typeSpec.substr(openBracket + 1, closeBracket - openBracket - 1);
         std::string substitutedInner = substituteType(inner, typeMap);
-        return mangleName(base, {substitutedInner});
+        std::string mangled = mangleName(base, {substitutedInner});
+        auto sIt = genericStructs.find(base);
+        if (sIt != genericStructs.end()) {
+            instantiateStruct(sIt->second, {substitutedInner}, mangled);
+        }
+        return mangled;
     }
 
     return typeSpec;
+}
+
+static std::unique_ptr<ExpressionNode> cloneExpr(const ExpressionNode* expr) {
+    if (!expr) return nullptr;
+    switch (expr->getType()) {
+        case NodeType::NumberLiteral: {
+            auto n = static_cast<const NumberLiteralASTNode*>(expr);
+            return std::make_unique<NumberLiteralASTNode>(n->getValue());
+        }
+        case NodeType::BooleanLiteral: {
+            auto b = static_cast<const BooleanLiteralASTNode*>(expr);
+            return std::make_unique<BooleanLiteralASTNode>(b->getValue());
+        }
+        case NodeType::StringLiteral: {
+            auto s = static_cast<const StringLiteralASTNode*>(expr);
+            return std::make_unique<StringLiteralASTNode>(s->getValue());
+        }
+        case NodeType::VariableExpr: {
+            auto v = static_cast<const VariableExprASTNode*>(expr);
+            return std::make_unique<VariableExprASTNode>(v->getName());
+        }
+        case NodeType::MemberAccess: {
+            auto m = static_cast<const MemberAccessASTNode*>(expr);
+            return std::make_unique<MemberAccessASTNode>(cloneExpr(m->getTarget()), m->getMember());
+        }
+        case NodeType::ArrayAccess: {
+            auto a = static_cast<const ArrayAccessASTNode*>(expr);
+            return std::make_unique<ArrayAccessASTNode>(cloneExpr(a->getArray()), cloneExpr(a->getIndex()));
+        }
+        case NodeType::UnaryOp: {
+            auto u = static_cast<const UnaryOpASTNode*>(expr);
+            return std::make_unique<UnaryOpASTNode>(u->getOp(), cloneExpr(u->getOperand()));
+        }
+        case NodeType::BinaryOp: {
+            auto b = static_cast<const BinaryOpASTNode*>(expr);
+            return std::make_unique<BinaryOpASTNode>(b->getOp(), cloneExpr(b->getLeft()), cloneExpr(b->getRight()));
+        }
+        case NodeType::CallExpr: {
+            auto c = static_cast<const CallExprASTNode*>(expr);
+            std::vector<std::unique_ptr<ExpressionNode>> args;
+            for (const auto& arg : c->getArgs()) {
+                args.push_back(cloneExpr(arg.get()));
+            }
+            return std::make_unique<CallExprASTNode>(c->getCallee(), std::move(args));
+        }
+        case NodeType::MethodCall: {
+            auto m = static_cast<const MethodCallASTNode*>(expr);
+            std::vector<std::unique_ptr<ExpressionNode>> args;
+            for (const auto& arg : m->getArgs()) {
+                args.push_back(cloneExpr(arg.get()));
+            }
+            return std::make_unique<MethodCallASTNode>(cloneExpr(m->getTarget()), m->getMethod(), std::move(args));
+        }
+        default:
+            return nullptr;
+    }
+}
+
+static std::unique_ptr<StatementNode> cloneStmt(const StatementNode* stmt, const std::unordered_map<std::string, std::string>& typeMap, Monomorphizer* mono) {
+    if (!stmt) return nullptr;
+    switch (stmt->getType()) {
+        case NodeType::VarDecl: {
+            auto v = static_cast<const VarDeclASTNode*>(stmt);
+            std::string substituted = mono->substituteType(v->getTypeName(), typeMap);
+            return std::make_unique<VarDeclASTNode>(v->getIsConst(), v->getName(), substituted, cloneExpr(v->getInitializer()));
+        }
+        case NodeType::Assignment: {
+            auto a = static_cast<const AssignmentASTNode*>(stmt);
+            return std::make_unique<AssignmentASTNode>(a->getName(), cloneExpr(a->getValue()));
+        }
+        case NodeType::MemberAssignment: {
+            auto m = static_cast<const MemberAssignmentASTNode*>(stmt);
+            return std::make_unique<MemberAssignmentASTNode>(cloneExpr(m->getTarget()), m->getMember(), cloneExpr(m->getValue()));
+        }
+        case NodeType::ExpressionStmt: {
+            auto e = static_cast<const ExpressionStmtASTNode*>(stmt);
+            return std::make_unique<ExpressionStmtASTNode>(cloneExpr(e->getExpression()));
+        }
+        case NodeType::Return: {
+            auto r = static_cast<const ReturnASTNode*>(stmt);
+            return std::make_unique<ReturnASTNode>(cloneExpr(r->getValue()));
+        }
+        case NodeType::Print: {
+            auto p = static_cast<const PrintASTNode*>(stmt);
+            return std::make_unique<PrintASTNode>(cloneExpr(p->getExpression()));
+        }
+        default:
+            return nullptr;
+    }
 }
 
 void Monomorphizer::instantiateFunction(const FunctionDeclASTNode* templateFunc, const std::vector<std::string>& typeArgs, const std::string& mangledName) {
@@ -65,25 +159,9 @@ void Monomorphizer::instantiateFunction(const FunctionDeclASTNode* templateFunc,
     if (templateFunc->getBody()) {
         std::vector<std::unique_ptr<StatementNode>> bodyStmts;
         for (const auto& stmt : templateFunc->getBody()->getStatements()) {
-            if (stmt->getType() == NodeType::Return) {
-                auto retStmt = static_cast<ReturnASTNode*>(stmt.get());
-                std::unique_ptr<ExpressionNode> retVal = nullptr;
-                if (retStmt->getValue()) {
-                    if (retStmt->getValue()->getType() == NodeType::VariableExpr) {
-                        auto v = static_cast<VariableExprASTNode*>(retStmt->getValue());
-                        retVal = std::make_unique<VariableExprASTNode>(v->getName());
-                    } else if (retStmt->getValue()->getType() == NodeType::NumberLiteral) {
-                        auto num = static_cast<NumberLiteralASTNode*>(retStmt->getValue());
-                        retVal = std::make_unique<NumberLiteralASTNode>(num->getValue());
-                    } else if (retStmt->getValue()->getType() == NodeType::StringLiteral) {
-                        auto str = static_cast<StringLiteralASTNode*>(retStmt->getValue());
-                        retVal = std::make_unique<StringLiteralASTNode>(str->getValue());
-                    } else if (retStmt->getValue()->getType() == NodeType::BooleanLiteral) {
-                        auto b = static_cast<BooleanLiteralASTNode*>(retStmt->getValue());
-                        retVal = std::make_unique<BooleanLiteralASTNode>(b->getValue());
-                    }
-                }
-                bodyStmts.push_back(std::make_unique<ReturnASTNode>(std::move(retVal)));
+            auto cloned = cloneStmt(stmt.get(), typeMap, this);
+            if (cloned) {
+                bodyStmts.push_back(std::move(cloned));
             }
         }
         newBody = std::make_unique<BlockASTNode>(std::move(bodyStmts));
@@ -110,7 +188,28 @@ void Monomorphizer::instantiateStruct(const StructDeclASTNode* templateStruct, c
         newFields.push_back({field.first, substituteType(field.second, typeMap)});
     }
 
-    auto instStruct = std::make_unique<StructDeclASTNode>(mangledName, std::move(newFields));
+    std::vector<std::unique_ptr<FunctionDeclASTNode>> newMethods;
+    for (const auto& method : templateStruct->getMethods()) {
+        std::vector<Parameter> newParams;
+        for (const auto& p : method->getParams()) {
+            newParams.push_back({p.name, substituteType(p.typeName, typeMap)});
+        }
+        std::string newRetType = substituteType(method->getReturnType(), typeMap);
+        std::unique_ptr<BlockASTNode> methodBody = nullptr;
+        if (method->getBody()) {
+            std::vector<std::unique_ptr<StatementNode>> bodyStmts;
+            for (const auto& stmt : method->getBody()->getStatements()) {
+                auto cloned = cloneStmt(stmt.get(), typeMap, this);
+                if (cloned) bodyStmts.push_back(std::move(cloned));
+            }
+            methodBody = std::make_unique<BlockASTNode>(std::move(bodyStmts));
+        }
+        newMethods.push_back(std::make_unique<FunctionDeclASTNode>(
+            method->getName(), std::move(newParams), newRetType, std::move(methodBody), method->getIsExtern()
+        ));
+    }
+
+    auto instStruct = std::make_unique<StructDeclASTNode>(mangledName, std::move(newFields), std::move(newMethods));
     newTopLevelStmts.push_back(std::move(instStruct));
 }
 
@@ -326,6 +425,10 @@ void Monomorphizer::visit(OptionalChainASTNode* node) {
 void Monomorphizer::visit(NullCoalesceASTNode* node) {
     if (node->getLeft()) node->getLeft()->accept(this);
     if (node->getRight()) node->getRight()->accept(this);
+}
+
+void Monomorphizer::visit(AwaitExprASTNode* node) {
+    if (node->getExpr()) node->getExpr()->accept(this);
 }
 
 } // namespace vit

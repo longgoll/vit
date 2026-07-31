@@ -1,0 +1,52 @@
+// VIT Standard Library - Multi-threading & Channels (std/thread.vit)
+
+extern function vit_thread_spawn(func: (arg: string) => number, arg: string): string;
+extern function vit_thread_join(handle: string): void;
+extern function vit_thread_detach(handle: string): void;
+
+extern function vit_channel_create(): string;
+extern function vit_channel_send(handle: string, val: number): void;
+extern function vit_channel_receive(handle: string): number;
+extern function vit_channel_free(handle: string): void;
+
+struct Thread {
+    handle: string,
+
+    function join(): void {
+        vit_thread_join(this.handle);
+    },
+
+    function detach(): void {
+        vit_thread_detach(this.handle);
+    }
+}
+
+function spawnThread(fn: (arg: string) => number, arg: string): Thread {
+    let h = vit_thread_spawn(fn, arg);
+    let t: Thread;
+    t.handle = h;
+    return t;
+}
+
+struct Channel<T> {
+    handle: string,
+
+    function send(val: number): void {
+        vit_channel_send(this.handle, val);
+    },
+
+    function receive(): number {
+        return vit_channel_receive(this.handle);
+    },
+
+    function close(): void {
+        vit_channel_free(this.handle);
+    }
+}
+
+function createChannel<T>(): Channel<T> {
+    let h = vit_channel_create();
+    let ch: Channel<T>;
+    ch.handle = h;
+    return ch;
+}

@@ -36,10 +36,11 @@ std::string LLVMCodeGen::getLLVMType(const std::string& vitTypeRaw) {
     if (vitType == "string") return "i8*";
     if (vitType == "null") return "i8*";
     if (vitType == "void") return "void";
+    if (vitType == "Promise" || vitType == "Channel" || vitType == "Thread") return "i8*";
     if (vitType.size() > 2 && vitType.substr(vitType.size() - 2) == "[]") {
         return "double*"; // Pointer to heap array
     }
-    if (vitType.find("=>") != std::string::npos || (!vitType.empty() && vitType[0] == '(')) {
+    if (vitType.find("=>") != std::string::npos || (!vitType.empty() && vitType[0] == '(') || vitType == "function") {
         return "i8*";
     }
     auto it = structs.find(vitType);
@@ -66,6 +67,29 @@ std::string LLVMCodeGen::generateIR(ProgramASTNode* program) {
     functionReturnTypes.clear();
     structs.clear();
     enums.clear();
+    declaredFunctions.clear();
+    declaredFunctions.insert("printf");
+    declaredFunctions.insert("sprintf");
+    declaredFunctions.insert("malloc");
+    declaredFunctions.insert("free");
+    declaredFunctions.insert("strlen");
+    declaredFunctions.insert("strcmp");
+    declaredFunctions.insert("strcpy");
+    declaredFunctions.insert("strcat");
+    declaredFunctions.insert("exit");
+    declaredFunctions.insert("__vit_init_args");
+    declaredFunctions.insert("vit_thread_spawn");
+    declaredFunctions.insert("vit_thread_join");
+    declaredFunctions.insert("vit_thread_detach");
+    declaredFunctions.insert("vit_channel_create");
+    declaredFunctions.insert("vit_channel_send");
+    declaredFunctions.insert("vit_channel_receive");
+    declaredFunctions.insert("vit_channel_free");
+    declaredFunctions.insert("vit_promise_create");
+    declaredFunctions.insert("vit_promise_resolve");
+    declaredFunctions.insert("vit_promise_await");
+    declaredFunctions.insert("vit_promise_free");
+    declaredFunctions.insert("vit_task_spawn");
     typeAliases.clear();
     loopStack.clear();
 
@@ -90,6 +114,7 @@ std::string LLVMCodeGen::generateIR(ProgramASTNode* program) {
     if (!globalDefsStream.str().empty()) fullModule << "\n";
 
     fullModule << "declare i32 @printf(i8*, ...)\n";
+    fullModule << "declare i32 @sprintf(i8*, i8*, ...)\n";
     fullModule << "declare i8* @malloc(i64)\n";
     fullModule << "declare void @free(i8*)\n";
     fullModule << "declare i64 @strlen(i8*)\n";
@@ -98,6 +123,18 @@ std::string LLVMCodeGen::generateIR(ProgramASTNode* program) {
     fullModule << "declare i8* @strcat(i8*, i8*)\n";
     fullModule << "declare void @exit(i32)\n";
     fullModule << "declare void @__vit_init_args(i32, i8**)\n\n";
+    fullModule << "declare i8* @vit_thread_spawn(i8*, i8*)\n";
+    fullModule << "declare void @vit_thread_join(i8*)\n";
+    fullModule << "declare void @vit_thread_detach(i8*)\n";
+    fullModule << "declare i8* @vit_channel_create()\n";
+    fullModule << "declare void @vit_channel_send(i8*, double)\n";
+    fullModule << "declare double @vit_channel_receive(i8*)\n";
+    fullModule << "declare void @vit_channel_free(i8*)\n";
+    fullModule << "declare i8* @vit_promise_create()\n";
+    fullModule << "declare void @vit_promise_resolve(i8*, double)\n";
+    fullModule << "declare double @vit_promise_await(i8*)\n";
+    fullModule << "declare void @vit_promise_free(i8*)\n";
+    fullModule << "declare void @vit_task_spawn(i8*, i8*)\n\n";
 
     fullModule << "define void @__vit_panic(i8* %msg) {\n";
     fullModule << "  %fmt = getelementptr inbounds [4 x i8], [4 x i8]* @.fmt_str, i64 0, i64 0\n";
@@ -154,7 +191,11 @@ void LLVMCodeGen::visit(ProgramASTNode* node) {
 
     // Pass 2: Register top-level function return types
     for (const auto& func : node->getFunctions()) {
-        functionReturnTypes[func->getName()] = func->getReturnType();
+        if (func->getIsAsync()) {
+            functionReturnTypes[func->getName()] = "Promise";
+        } else {
+            functionReturnTypes[func->getName()] = func->getReturnType();
+        }
     }
 
     // Pass 3: Emit IR for struct methods and functions
@@ -271,9 +312,14 @@ void LLVMCodeGen::visit(FunctionDeclASTNode* node) {
 
     currentFunctionName = node->getName();
     currentFunctionReturnType = node->getReturnType();
-    std::string llvmRetType = (currentFunctionName == "main") ? "i32" : getLLVMType(currentFunctionReturnType);
+    currentFunctionIsAsync = (currentFunctionName == "main") ? false : node->getIsAsync();
+    std::string llvmRetType = (currentFunctionName == "main") ? "i32" : (currentFunctionIsAsync ? "i8*" : getLLVMType(currentFunctionReturnType));
 
     if (node->getIsExtern()) {
+        if (declaredFunctions.count(node->getName())) {
+            return;
+        }
+        declaredFunctions.insert(node->getName());
         irStream << "declare " << llvmRetType << " @" << node->getName() << "(";
         const auto& params = node->getParams();
         for (size_t i = 0; i < params.size(); ++i) {
@@ -304,6 +350,13 @@ void LLVMCodeGen::visit(FunctionDeclASTNode* node) {
         irStream << "call void @__vit_init_args(i32 %argc, i8** %argv)\n";
     }
 
+    if (currentFunctionIsAsync) {
+        std::string promReg = newReg();
+        emitIndent();
+        irStream << promReg << " = call i8* @vit_promise_create()\n";
+        currentPromiseReg = promReg;
+    }
+
     for (const auto& param : params) {
         std::string addrReg = "%" + param.name + ".addr";
         std::string pType = getLLVMType(param.typeName);
@@ -324,6 +377,11 @@ void LLVMCodeGen::visit(FunctionDeclASTNode* node) {
         emitIndent();
         if (currentFunctionName == "main") {
             irStream << "ret i32 0\n";
+        } else if (currentFunctionIsAsync) {
+            emitIndent();
+            irStream << "call void @vit_promise_resolve(i8* " << currentPromiseReg << ", double 0.000000e+00)\n";
+            emitIndent();
+            irStream << "ret i8* " << currentPromiseReg << "\n";
         } else if (llvmRetType == "void") {
             irStream << "ret void\n";
         } else if (llvmRetType == "i1") {
@@ -529,6 +587,14 @@ void LLVMCodeGen::visit(ArrayLiteralASTNode* node) {
 
 void LLVMCodeGen::visit(VariableExprASTNode* node) {
     auto it = symbolTable.find(node->getName());
+    if (it == symbolTable.end() && functionReturnTypes.count(node->getName())) {
+        std::string fnPtr = newReg();
+        emitIndent();
+        irStream << fnPtr << " = bitcast i8* @" << node->getName() << " to i8*\n";
+        lastResultReg = fnPtr;
+        lastResultType = "function";
+        return;
+    }
     std::string addrReg = (it != symbolTable.end()) ? it->second.addrReg : ("%" + node->getName() + ".addr");
     std::string typeName = (it != symbolTable.end()) ? it->second.typeName : "number";
 
@@ -778,13 +844,38 @@ void LLVMCodeGen::visit(BinaryOpASTNode* node) {
 
     if (op == "+") {
         if (lhsType == "string" || rhsType == "string") {
+            std::string strLhs = lhs;
+            if (lhsType == "number") {
+                std::string numBuf = newReg();
+                emitIndent();
+                irStream << numBuf << " = call i8* @malloc(i64 64)\n";
+                std::string fmtPtr = newReg();
+                emitIndent();
+                irStream << fmtPtr << " = getelementptr inbounds [4 x i8], [4 x i8]* @.fmt_num, i64 0, i64 0\n";
+                emitIndent();
+                irStream << "call i32 (i8*, i8*, ...) @sprintf(i8* " << numBuf << ", i8* " << fmtPtr << ", double " << lhs << ")\n";
+                strLhs = numBuf;
+            }
+            std::string strRhs = rhs;
+            if (rhsType == "number") {
+                std::string numBuf = newReg();
+                emitIndent();
+                irStream << numBuf << " = call i8* @malloc(i64 64)\n";
+                std::string fmtPtr = newReg();
+                emitIndent();
+                irStream << fmtPtr << " = getelementptr inbounds [4 x i8], [4 x i8]* @.fmt_num, i64 0, i64 0\n";
+                emitIndent();
+                irStream << "call i32 (i8*, i8*, ...) @sprintf(i8* " << numBuf << ", i8* " << fmtPtr << ", double " << rhs << ")\n";
+                strRhs = numBuf;
+            }
+
             std::string len1 = newReg();
             emitIndent();
-            irStream << len1 << " = call i64 @strlen(i8* " << lhs << ")\n";
+            irStream << len1 << " = call i64 @strlen(i8* " << strLhs << ")\n";
 
             std::string len2 = newReg();
             emitIndent();
-            irStream << len2 << " = call i64 @strlen(i8* " << rhs << ")\n";
+            irStream << len2 << " = call i64 @strlen(i8* " << strRhs << ")\n";
 
             std::string totalLen = newReg();
             emitIndent();
@@ -800,11 +891,11 @@ void LLVMCodeGen::visit(BinaryOpASTNode* node) {
 
             std::string dummy1 = newReg();
             emitIndent();
-            irStream << dummy1 << " = call i8* @strcpy(i8* " << bufReg << ", i8* " << lhs << ")\n";
+            irStream << dummy1 << " = call i8* @strcpy(i8* " << bufReg << ", i8* " << strLhs << ")\n";
 
             std::string dummy2 = newReg();
             emitIndent();
-            irStream << dummy2 << " = call i8* @strcat(i8* " << bufReg << ", i8* " << rhs << ")\n";
+            irStream << dummy2 << " = call i8* @strcat(i8* " << bufReg << ", i8* " << strRhs << ")\n";
 
             lastResultReg = bufReg;
             lastResultType = "string";
@@ -1304,6 +1395,26 @@ void LLVMCodeGen::visit(PrintASTNode* node) {
 }
 
 void LLVMCodeGen::visit(ReturnASTNode* node) {
+    if (currentFunctionIsAsync) {
+        std::string valReg = "0.000000e+00";
+        if (node->getValue()) {
+            node->getValue()->accept(this);
+            valReg = lastResultReg;
+            if (lastResultType == "boolean") {
+                std::string dblReg = newReg();
+                emitIndent();
+                irStream << dblReg << " = uitofp i1 " << lastResultReg << " to double\n";
+                valReg = dblReg;
+            }
+        }
+        emitIndent();
+        irStream << "call void @vit_promise_resolve(i8* " << currentPromiseReg << ", double " << valReg << ")\n";
+        emitIndent();
+        irStream << "ret i8* " << currentPromiseReg << "\n";
+        blockHasTerminator = true;
+        return;
+    }
+
     std::string retVal = "";
     std::string retType = "";
     if (node->getValue()) {
@@ -2010,6 +2121,20 @@ void LLVMCodeGen::visit(NullCoalesceASTNode* node) {
 
     lastResultReg = phiReg;
     lastResultType = rightType;
+}
+
+void LLVMCodeGen::visit(AwaitExprASTNode* node) {
+    if (node->getExpr()) {
+        node->getExpr()->accept(this);
+    }
+    std::string promiseReg = lastResultReg;
+
+    std::string resVal = newReg();
+    emitIndent();
+    irStream << resVal << " = call double @vit_promise_await(i8* " << promiseReg << ")\n";
+
+    lastResultReg = resVal;
+    lastResultType = "number";
 }
 
 } // namespace vit

@@ -41,6 +41,7 @@ class NullLiteralASTNode;
 class TryExprASTNode;
 class OptionalChainASTNode;
 class NullCoalesceASTNode;
+class AwaitExprASTNode;
 
 class ASTVisitor {
 public:
@@ -83,6 +84,7 @@ public:
     virtual void visit(TryExprASTNode* node) = 0;
     virtual void visit(OptionalChainASTNode* node) = 0;
     virtual void visit(NullCoalesceASTNode* node) = 0;
+    virtual void visit(AwaitExprASTNode* node) = 0;
 };
 
 } // namespace vit

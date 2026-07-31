@@ -52,7 +52,8 @@ enum class NodeType {
     NullLiteral,
     TryExpr,
     OptionalChain,
-    NullCoalesce
+    NullCoalesce,
+    AwaitExpr
 };
 
 // Base class for all AST nodes

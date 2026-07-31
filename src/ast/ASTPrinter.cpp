@@ -431,5 +431,15 @@ void ASTPrinter::visit(NullCoalesceASTNode* node) {
     indentLevel--;
 }
 
+void ASTPrinter::visit(AwaitExprASTNode* node) {
+    printIndent();
+    out << "[AwaitExprASTNode]\n";
+    if (node->getExpr()) {
+        indentLevel++;
+        node->getExpr()->accept(this);
+        indentLevel--;
+    }
+}
+
 } // namespace vit
 

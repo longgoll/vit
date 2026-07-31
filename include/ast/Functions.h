@@ -15,6 +15,7 @@ private:
     std::string returnType;
     std::unique_ptr<BlockASTNode> body;
     bool isExtern = false;
+    bool isAsync = false;
     std::vector<std::string> genericParams;
 
 public:
@@ -23,12 +24,14 @@ public:
                         std::string retType,
                         std::unique_ptr<BlockASTNode> funcBody,
                         bool externFlag = false,
-                        std::vector<std::string> genParams = {})
+                        std::vector<std::string> genParams = {},
+                        bool asyncFlag = false)
         : name(std::move(funcName)),
           params(std::move(parameters)),
           returnType(std::move(retType)),
           body(std::move(funcBody)),
           isExtern(externFlag),
+          isAsync(asyncFlag),
           genericParams(std::move(genParams)) {}
 
     const std::string& getName() const { return name; }
@@ -36,6 +39,7 @@ public:
     const std::string& getReturnType() const { return returnType; }
     BlockASTNode* getBody() const { return body.get(); }
     bool getIsExtern() const { return isExtern; }
+    bool getIsAsync() const { return isAsync; }
     const std::vector<std::string>& getGenericParams() const { return genericParams; }
 
     NodeType getType() const override { return NodeType::FunctionDecl; }

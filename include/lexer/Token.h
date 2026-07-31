@@ -32,6 +32,8 @@ enum class TokenType {
     KwEnum,     // enum
     KwMatch,    // match
     KwNull,     // null
+    KwAsync,    // async
+    KwAwait,    // await
 
     // Identifiers & Literals
     Identifier,    // e.g. add, main, x, number
@@ -111,6 +113,8 @@ inline std::string_view tokenTypeToString(TokenType type) {
         case TokenType::KwEnum: return "enum";
         case TokenType::KwMatch: return "match";
         case TokenType::KwNull: return "null";
+        case TokenType::KwAsync: return "async";
+        case TokenType::KwAwait: return "await";
         case TokenType::Identifier: return "Identifier";
         case TokenType::NumberLiteral: return "NumberLiteral";
         case TokenType::StringLiteral: return "StringLiteral";

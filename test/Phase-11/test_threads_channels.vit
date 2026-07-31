@@ -1,0 +1,29 @@
+import { createChannel, spawnThread } from "std/thread";
+
+function worker(chHandle: string): number {
+    print("Worker thread starting work...");
+    let sum = 0.0;
+    for (let i = 1.0; i <= 10.0; i = i + 1.0) {
+        sum = sum + i;
+    }
+    print("Worker sending result to channel...");
+    vit_channel_send(chHandle, sum);
+    return 0.0;
+}
+
+function main(): number {
+    print("Testing Phase 11: Multi-threading & Channels...");
+    let ch = createChannel<number>();
+    
+    let t = spawnThread(worker, ch.handle);
+    
+    let result = ch.receive();
+    print("Main thread received channel result: " + result);
+    
+    t.join();
+    ch.close();
+    
+    assert(result == 55.0, "Sum 1..10 must be 55");
+    print("Multi-threading Test PASSED!");
+    return 0;
+}

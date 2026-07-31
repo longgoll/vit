@@ -40,6 +40,7 @@ private:
     std::unordered_map<std::string, std::string> functionReturnTypes;
     std::unordered_map<std::string, StructInfo> structs;
     std::unordered_set<std::string> enums;
+    std::unordered_set<std::string> declaredFunctions;
     std::unordered_map<std::string, std::string> typeAliases;
 
     int regCounter = 0;
@@ -47,6 +48,8 @@ private:
     int stringCounter = 0;
     int lambdaCounter = 0;
     bool blockHasTerminator = false;
+    bool currentFunctionIsAsync = false;
+    std::string currentPromiseReg;
 
     std::vector<LoopTarget> loopStack;
     std::vector<std::vector<VarSymbol>> heapScopeStack;
@@ -101,6 +104,7 @@ public:
     void visit(TryExprASTNode* node) override;
     void visit(OptionalChainASTNode* node) override;
     void visit(NullCoalesceASTNode* node) override;
+    void visit(AwaitExprASTNode* node) override;
 };
 
 

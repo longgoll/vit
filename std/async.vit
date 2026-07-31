@@ -1,0 +1,29 @@
+// VIT Standard Library - Asynchronous Promise Helpers (std/async.vit)
+
+extern function vit_promise_create(): string;
+extern function vit_promise_resolve(handle: string, val: number): void;
+extern function vit_promise_await(handle: string): number;
+extern function vit_promise_free(handle: string): void;
+
+struct Promise<T> {
+    handle: string,
+
+    function resolve(val: number): void {
+        vit_promise_resolve(this.handle, val);
+    },
+
+    function awaitResult(): number {
+        return vit_promise_await(this.handle);
+    },
+
+    function free(): void {
+        vit_promise_free(this.handle);
+    }
+}
+
+function createPromise<T>(): Promise<T> {
+    let h = vit_promise_create();
+    let p: Promise<T>;
+    p.handle = h;
+    return p;
+}

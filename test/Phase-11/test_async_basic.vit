@@ -1,0 +1,16 @@
+import { createPromise } from "std/async";
+
+async function computeData(x: number): number {
+    print("Inside computeData async function");
+    return x * 2.0;
+}
+
+async function main(): number {
+    print("Testing Phase 11: Async & Promise Engine...");
+    let p = computeData(21.0);
+    let result = await p;
+    print("Async Result: " + result);
+    assert(result == 42.0, "Async calculation must equal 42");
+    print("Async Test PASSED!");
+    return 0;
+}

@@ -28,7 +28,9 @@ static const std::unordered_map<std::string, TokenType> keywords = {
     {"type", TokenType::KwType},
     {"enum", TokenType::KwEnum},
     {"match", TokenType::KwMatch},
-    {"null", TokenType::KwNull}
+    {"null", TokenType::KwNull},
+    {"async", TokenType::KwAsync},
+    {"await", TokenType::KwAwait}
 };
 
 Lexer::Lexer(std::string sourceCode) : source(std::move(sourceCode)) {}

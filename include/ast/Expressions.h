@@ -333,6 +333,21 @@ public:
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 
+// Node representing an await expression (e.g. await fetchUserData(42))
+class AwaitExprASTNode : public ExpressionNode {
+private:
+    std::unique_ptr<ExpressionNode> expr;
+
+public:
+    explicit AwaitExprASTNode(std::unique_ptr<ExpressionNode> targetExpr)
+        : expr(std::move(targetExpr)) {}
+
+    ExpressionNode* getExpr() const { return expr.get(); }
+
+    NodeType getType() const override { return NodeType::AwaitExpr; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
 } // namespace vit
 
 #endif // VIT_EXPRESSIONS_H

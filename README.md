@@ -52,6 +52,20 @@
 * **Runtime Bounds Checking**: Tự động so sánh chỉ số mảng và gọi handler `@__vit_panic("Index out of bounds")` khi truy cập vượt giới hạn.
 * **Panic System & Assertions**: Hàm built-in `panic(msg)` và `assert(condition, msg)`.
 
+### 🔹 Phase 9 — Built-in Collections & Advanced Stdlib (v0.9.0)
+* **Tập Hợp Cốt Lõi (`HashMap`, `Set`)**: Cấu trúc dữ liệu `HashMap<K, V>` và `Set<T>` được liên kết với C Runtime (`collections_rt.c`).
+* **Tiện Ích Hệ Thống & CLI**: Đọc cờ tham số dòng lệnh (`getArgCount()`, `getArg()`) và biến môi trường (`getEnv()`).
+* **Chuẩn Hóa JSON**: Module `std/json.vit` hỗ trợ encode/escape văn bản JSON.
+
+### 🔹 Phase 10 — Self-Hosting Compiler (v1.0.0 Milestone)
+* **Compiler Tự Biên Dịch 100%**: Mã nguồn trình biên dịch VIT được viết hoàn toàn bằng chính ngôn ngữ VIT (`src_vit/`).
+* **Quy Trình Bootstrapping 3 Giai Đoạn**: Khởi chạy từ `vit.exe` (Stage 0) ➔ `vitc_stage1.exe` ➔ `vitc_stage2.exe` kiểm thử độc lập.
+
+### 🔹 Phase 11 — Concurrency & Async Engine (v1.1.0)
+* **Bất Đồng Bộ (`async` / `await`)**: Từ khóa `async` và `await` tích hợp trực tiếp với hạ tầng `Promise<T>` và mã trung gian LLVM IR.
+* **Đa Luồng & Channel**: Spawning OS Thread và truyền dữ liệu qua kênh đồng bộ an toàn luồng (`std/thread`, `std/channel`) trên hạ tầng Win32 API.
+* **Monormorphizer Multi-statement Pass**: Tự động nhân bản và thay thế kiểu cho phương thức mảng/struct phức hợp.
+
 ---
 
 ## 🛠 Cấu Trúc Dự Án (Project Structure)
@@ -109,14 +123,14 @@ cmake --build build --config Release
 ### 2️⃣ Chạy Thử Chương Trình VIT (`.vit`)
 
 ```bash
-# 1. Chạy file ví dụ Phase 8 (Try Operator & Null Safety)
-vit run test/Phase-8/test_null_safety.vit
+# 1. Chạy file ví dụ Phase 11 (Async & Promise Engine)
+vit run test/Phase-11/test_async_basic.vit
 
-# 2. Biên dịch Native tối ưu hóa với -O2
-vit build test/Phase-8/test_try_operator.vit -O2 -o try_test.exe
+# 2. Chạy file ví dụ Multi-threading & Channels
+vit run test/Phase-11/test_threads_channels.vit
 
-# 3. Xem mã LLVM IR với bounds check & ARC cleanup
-vit run test/Phase-8/test_bounds_check.vit --emit-llvm
+# 3. Biên dịch Native tối ưu hóa với -O2
+vit build test/Phase-11/test_threads_channels.vit -O2 -o thread_test.exe
 ```
 
 ---
@@ -124,40 +138,39 @@ vit run test/Phase-8/test_bounds_check.vit --emit-llvm
 ## 💡 Ví Dụ Mã Nguồn VIT (`.vit`)
 
 ```javascript
-import { readFile } from "std/fs";
+import { createChannel, spawnThread } from "std/thread";
 
-struct User {
-    id: number,
-    name: string,
-    email: string? // Nullable type
+async function computeAsync(val: number): number {
+    print("Executing async calculation...");
+    return val * 2.0;
 }
 
-function parseUser(raw: string): Option<User> {
-    if (raw.length == 0) {
-        return Option.None;
+function worker(chHandle: string): number {
+    print("Worker thread processing data...");
+    let sum = 0.0;
+    for (let i = 1.0; i <= 10.0; i = i + 1.0) {
+        sum = sum + i;
     }
-    let u: User;
-    u.id = 1.0;
-    u.name = "Hoang Long";
-    u.email = null;
-    return Option.Some(u);
+    vit_channel_send(chHandle, sum);
+    return 0.0;
 }
 
 function main(): number {
-    print("=== VIT Language v0.8.0 ===");
+    print("=== VIT Language v1.1.0 ===");
 
-    // 1. Try Operator (?) & Null Safety (?. / ??)
-    let raw = readFile("user.json")?;
-    let user = parseUser(raw)?;
+    // 1. Async / Await Engine
+    let promiseVal = await computeAsync(21.0);
+    print("Async Result: " + promiseVal);
 
-    let email = user?.email ?? "no-email@domain.com";
-    print(email);
+    // 2. Multi-threading & Synchronization Channels
+    let ch = createChannel<number>();
+    let t = spawnThread(worker, ch.handle);
 
-    // 2. Runtime Array Bounds Check & Panic Safety
-    let numbers = [10.0, 20.0, 30.0];
-    assert(numbers.length == 3.0, "Array length must be 3");
+    let channelVal = ch.receive();
+    print("Main thread received channel result: " + channelVal);
 
-    print(numbers[0]);
+    t.join();
+    ch.close();
 
     return 0;
 }

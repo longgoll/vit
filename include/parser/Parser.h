@@ -30,7 +30,7 @@ private:
     Token consume(TokenType type, const std::string& errorMessage);
 
     // Grammars
-    std::unique_ptr<FunctionDeclASTNode> parseFunctionDecl(bool isExtern = false);
+    std::unique_ptr<FunctionDeclASTNode> parseFunctionDecl(bool isExtern = false, bool isAsync = false);
     std::unique_ptr<StructDeclASTNode> parseStructDecl();
     std::unique_ptr<EnumDeclASTNode> parseEnumDecl();
     std::unique_ptr<ImportASTNode> parseImportDecl();

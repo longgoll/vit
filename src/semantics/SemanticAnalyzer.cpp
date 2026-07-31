@@ -108,6 +108,8 @@ void SemanticAnalyzer::visit(ProgramASTNode* node) {
 
 void SemanticAnalyzer::visit(FunctionDeclASTNode* node) {
     currentReturnType = node->getReturnType();
+    bool oldAsync = inAsyncScope;
+    inAsyncScope = node->getIsAsync();
     enterScope();
 
     for (const auto& param : node->getParams()) {
@@ -119,6 +121,7 @@ void SemanticAnalyzer::visit(FunctionDeclASTNode* node) {
     }
 
     exitScope();
+    inAsyncScope = oldAsync;
 }
 
 void SemanticAnalyzer::visit(BlockASTNode* node) {
@@ -299,6 +302,10 @@ void SemanticAnalyzer::visit(VariableExprASTNode* node) {
             lastInferredType = node->getName();
             return;
         }
+        if (functionTable.find(node->getName()) != functionTable.end()) {
+            lastInferredType = "function";
+            return;
+        }
         reportError("Use of undeclared variable '" + node->getName() + "'.");
         lastInferredType = "unknown";
     } else {
@@ -431,6 +438,10 @@ void SemanticAnalyzer::visit(LambdaASTNode* node) {
 }
 
 void SemanticAnalyzer::visit(CallExprASTNode* node) {
+    for (const auto& arg : node->getArgs()) {
+        arg->accept(this);
+    }
+
     auto it = functionTable.find(node->getCallee());
     if (it != functionTable.end()) {
         lastInferredType = resolveType(it->second.first);
@@ -448,10 +459,6 @@ void SemanticAnalyzer::visit(CallExprASTNode* node) {
             reportError("Call to undefined function or variable '" + node->getCallee() + "'.");
             lastInferredType = "unknown";
         }
-    }
-
-    for (const auto& arg : node->getArgs()) {
-        arg->accept(this);
     }
 }
 
@@ -617,6 +624,21 @@ void SemanticAnalyzer::visit(NullCoalesceASTNode* node) {
         leftType.pop_back();
     }
     lastInferredType = leftType.empty() ? lastInferredType : leftType;
+}
+
+void SemanticAnalyzer::visit(AwaitExprASTNode* node) {
+    if (!inAsyncScope) {
+        reportError("'await' expression is only allowed inside an 'async' function.");
+    }
+    if (node->getExpr()) {
+        node->getExpr()->accept(this);
+    }
+    // Unwrap Promise<T> if present
+    std::string type = lastInferredType;
+    if (type.rfind("Promise<", 0) == 0 && type.back() == '>') {
+        type = type.substr(8, type.size() - 9);
+    }
+    lastInferredType = type;
 }
 
 } // namespace vit

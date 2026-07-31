@@ -33,6 +33,7 @@ private:
     std::string currentReturnType;
     std::string lastInferredType;
     int loopDepth = 0;
+    bool inAsyncScope = false;
     bool hasError = false;
     std::vector<std::string> errorMessages;
 
@@ -86,6 +87,7 @@ public:
     void visit(TryExprASTNode* node) override;
     void visit(OptionalChainASTNode* node) override;
     void visit(NullCoalesceASTNode* node) override;
+    void visit(AwaitExprASTNode* node) override;
 };
 
 

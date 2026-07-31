@@ -119,7 +119,25 @@ bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const 
     for (const auto& candidate : rtCandidates) {
         std::ifstream f(candidate);
         if (f.good()) {
-            rtPath = "\"" + normalizeWinPath(candidate) + "\" ";
+            rtPath += "\"" + normalizeWinPath(candidate) + "\" ";
+            break;
+        }
+    }
+
+    std::vector<std::string> asyncRtCandidates = {
+        exeDir + "\\src\\runtime\\concurrency_rt.c",
+        exeDir + "\\..\\src\\runtime\\concurrency_rt.c",
+        exeDir + "\\..\\..\\src\\runtime\\concurrency_rt.c",
+        "src/runtime/concurrency_rt.c",
+        exeDir + "\\src\\runtime\\concurrency_rt.cpp",
+        exeDir + "\\..\\src\\runtime\\concurrency_rt.cpp",
+        exeDir + "\\..\\..\\src\\runtime\\concurrency_rt.cpp",
+        "src/runtime/concurrency_rt.cpp"
+    };
+    for (const auto& candidate : asyncRtCandidates) {
+        std::ifstream f(candidate);
+        if (f.good()) {
+            rtPath += "\"" + normalizeWinPath(candidate) + "\" ";
             break;
         }
     }

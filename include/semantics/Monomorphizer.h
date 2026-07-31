@@ -22,14 +22,14 @@ private:
     std::vector<std::unique_ptr<StatementNode>> newTopLevelStmts;
 
     std::string mangleName(const std::string& baseName, const std::vector<std::string>& typeArgs);
-    std::string substituteType(const std::string& typeSpec, const std::unordered_map<std::string, std::string>& typeMap);
-
     void instantiateFunction(const FunctionDeclASTNode* templateFunc, const std::vector<std::string>& typeArgs, const std::string& mangledName);
     void instantiateStruct(const StructDeclASTNode* templateStruct, const std::vector<std::string>& typeArgs, const std::string& mangledName);
     void instantiateEnum(const EnumDeclASTNode* templateEnum, const std::vector<std::string>& typeArgs, const std::string& mangledName);
 
 public:
     Monomorphizer() = default;
+
+    std::string substituteType(const std::string& typeSpec, const std::unordered_map<std::string, std::string>& typeMap);
 
     void process(ProgramASTNode* program);
 
@@ -70,6 +70,7 @@ public:
     void visit(TryExprASTNode* node) override;
     void visit(OptionalChainASTNode* node) override;
     void visit(NullCoalesceASTNode* node) override;
+    void visit(AwaitExprASTNode* node) override;
 };
 
 } // namespace vit
