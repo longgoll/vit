@@ -1,0 +1,36 @@
+function main(): number {
+    print("=== Test Phase-5: String & Array Operations ===");
+
+    // 1. String Concatenation (+)
+    let greeting = "Hello, " + "World!";
+    print(greeting);
+
+    // 2. String Length (.length)
+    let len = greeting.length;
+    print("Greeting length (expect 13):");
+    print(len);
+
+    // 3. String Comparison (== and !=)
+    let s1 = "VIT Compiler";
+    let s2 = "VIT Compiler";
+    let s3 = "Rust Compiler";
+
+    if (s1 == s2) {
+        print("s1 == s2: TRUE");
+    } else {
+        print("s1 == s2: FALSE");
+    }
+
+    if (s1 != s3) {
+        print("s1 != s3: TRUE");
+    } else {
+        print("s1 != s3: FALSE");
+    }
+
+    // 4. Array Length (.length)
+    let numbers = [10, 20, 30, 40, 50];
+    print("Array length (expect 5):");
+    print(numbers.length);
+
+    return 0;
+}

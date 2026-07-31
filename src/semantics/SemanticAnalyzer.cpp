@@ -43,6 +43,7 @@ bool SemanticAnalyzer::analyze(ProgramASTNode* program) {
     scopeStack.clear();
     functionTable.clear();
     structTable.clear();
+    structMethodsTable.clear();
     errorMessages.clear();
     hasError = false;
     loopDepth = 0;
@@ -59,6 +60,13 @@ void SemanticAnalyzer::visit(ProgramASTNode* node) {
         if (stmt->getType() == NodeType::StructDecl) {
             auto structDecl = static_cast<StructDeclASTNode*>(stmt.get());
             structTable[structDecl->getName()] = structDecl->getFields();
+            for (const auto& method : structDecl->getMethods()) {
+                std::vector<std::string> paramTypes;
+                for (const auto& p : method->getParams()) {
+                    paramTypes.push_back(p.typeName);
+                }
+                structMethodsTable[structDecl->getName()][method->getName()] = {method->getReturnType(), paramTypes};
+            }
         }
     }
 
@@ -106,6 +114,18 @@ void SemanticAnalyzer::visit(BlockASTNode* node) {
 
 void SemanticAnalyzer::visit(StructDeclASTNode* node) {
     structTable[node->getName()] = node->getFields();
+    for (const auto& method : node->getMethods()) {
+        currentReturnType = method->getReturnType();
+        enterScope();
+        declareVariable("this", node->getName(), false); // Implicit 'this' pointer
+        for (const auto& param : method->getParams()) {
+            declareVariable(param.name, param.typeName, false);
+        }
+        if (method->getBody()) {
+            method->getBody()->accept(this);
+        }
+        exitScope();
+    }
 }
 
 void SemanticAnalyzer::visit(ImportASTNode* node) {
@@ -270,6 +290,14 @@ void SemanticAnalyzer::visit(MemberAccessASTNode* node) {
         node->getTarget()->accept(this);
     }
     std::string structType = lastInferredType;
+
+    if (node->getMember() == "length") {
+        if (structType == "string" || (structType.size() > 2 && structType.substr(structType.size() - 2) == "[]")) {
+            lastInferredType = "number";
+            return;
+        }
+    }
+
     auto it = structTable.find(structType);
     if (it != structTable.end()) {
         bool foundField = false;
@@ -323,7 +351,13 @@ void SemanticAnalyzer::visit(BinaryOpASTNode* node) {
     std::string rightType = lastInferredType;
 
     const std::string& op = node->getOp();
-    if (op == "&&" || op == "||" || op == ">" || op == "<" || op == "==" || op == "!=" || op == ">=" || op == "<=") {
+    if (op == "+") {
+        if (leftType == "string" || rightType == "string") {
+            lastInferredType = "string";
+        } else {
+            lastInferredType = "number";
+        }
+    } else if (op == "&&" || op == "||" || op == ">" || op == "<" || op == "==" || op == "!=" || op == ">=" || op == "<=") {
         lastInferredType = "boolean";
     } else {
         lastInferredType = "number";
@@ -341,6 +375,35 @@ void SemanticAnalyzer::visit(CallExprASTNode* node) {
 
     for (const auto& arg : node->getArgs()) {
         arg->accept(this);
+    }
+}
+
+void SemanticAnalyzer::visit(MethodCallASTNode* node) {
+    if (node->getTarget()) {
+        node->getTarget()->accept(this);
+    }
+    std::string targetType = lastInferredType;
+
+    for (const auto& arg : node->getArgs()) {
+        arg->accept(this);
+    }
+
+    auto structIt = structMethodsTable.find(targetType);
+    if (structIt != structMethodsTable.end()) {
+        auto methodIt = structIt->second.find(node->getMethod());
+        if (methodIt != structIt->second.end()) {
+            lastInferredType = methodIt->second.first;
+            return;
+        }
+    }
+
+    reportError("Call to undefined method '" + node->getMethod() + "' on type '" + targetType + "'.");
+    lastInferredType = "unknown";
+}
+
+void SemanticAnalyzer::visit(ExpressionStmtASTNode* node) {
+    if (node->getExpression()) {
+        node->getExpression()->accept(this);
     }
 }
 

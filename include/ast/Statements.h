@@ -93,18 +93,26 @@ public:
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 
+class FunctionDeclASTNode;
+
 // Node representing a struct declaration (e.g. struct Point { x: number, y: number })
 class StructDeclASTNode : public StatementNode {
 private:
     std::string name;
     std::vector<std::pair<std::string, std::string>> fields; // name -> typeName
+    std::vector<std::unique_ptr<FunctionDeclASTNode>> methods;
 
 public:
-    StructDeclASTNode(std::string structName, std::vector<std::pair<std::string, std::string>> structFields)
-        : name(std::move(structName)), fields(std::move(structFields)) {}
+    StructDeclASTNode(std::string structName,
+                      std::vector<std::pair<std::string, std::string>> structFields,
+                      std::vector<std::unique_ptr<FunctionDeclASTNode>> structMethods = {})
+        : name(std::move(structName)),
+          fields(std::move(structFields)),
+          methods(std::move(structMethods)) {}
 
     const std::string& getName() const { return name; }
     const std::vector<std::pair<std::string, std::string>>& getFields() const { return fields; }
+    const std::vector<std::unique_ptr<FunctionDeclASTNode>>& getMethods() const { return methods; }
 
     NodeType getType() const override { return NodeType::StructDecl; }
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
@@ -257,6 +265,21 @@ public:
     ExpressionNode* getExpression() const { return expression.get(); }
 
     NodeType getType() const override { return NodeType::Print; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing an expression statement (e.g. p.scale(2.0); or doSomething();)
+class ExpressionStmtASTNode : public StatementNode {
+private:
+    std::unique_ptr<ExpressionNode> expression;
+
+public:
+    explicit ExpressionStmtASTNode(std::unique_ptr<ExpressionNode> expr)
+        : expression(std::move(expr)) {}
+
+    ExpressionNode* getExpression() const { return expression.get(); }
+
+    NodeType getType() const override { return NodeType::ExpressionStmt; }
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 

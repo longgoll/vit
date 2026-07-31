@@ -30,6 +30,8 @@ class ArrayAccessASTNode;
 class UnaryOpASTNode;
 class BinaryOpASTNode;
 class CallExprASTNode;
+class MethodCallASTNode;
+class ExpressionStmtASTNode;
 
 class ASTVisitor {
 public:
@@ -61,6 +63,8 @@ public:
     virtual void visit(UnaryOpASTNode* node) = 0;
     virtual void visit(BinaryOpASTNode* node) = 0;
     virtual void visit(CallExprASTNode* node) = 0;
+    virtual void visit(MethodCallASTNode* node) = 0;
+    virtual void visit(ExpressionStmtASTNode* node) = 0;
 };
 
 } // namespace vit

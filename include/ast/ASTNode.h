@@ -36,7 +36,9 @@ enum class NodeType {
     ArrayAccess,
     UnaryOp,
     BinaryOp,
-    CallExpr
+    CallExpr,
+    MethodCall,
+    ExpressionStmt
 };
 
 // Base class for all AST nodes

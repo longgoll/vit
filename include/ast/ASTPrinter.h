@@ -42,6 +42,8 @@ public:
     void visit(UnaryOpASTNode* node) override;
     void visit(BinaryOpASTNode* node) override;
     void visit(CallExprASTNode* node) override;
+    void visit(MethodCallASTNode* node) override;
+    void visit(ExpressionStmtASTNode* node) override;
 };
 
 } // namespace vit

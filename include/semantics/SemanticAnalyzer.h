@@ -26,6 +26,7 @@ private:
     std::vector<std::unordered_map<std::string, SymbolInfo>> scopeStack;
     std::unordered_map<std::string, std::pair<std::string, std::vector<std::string>>> functionTable; // funcName -> (returnType, paramTypes)
     std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> structTable; // structName -> fields (name, type)
+    std::unordered_map<std::string, std::unordered_map<std::string, std::pair<std::string, std::vector<std::string>>>> structMethodsTable; // structName -> (methodName -> (retType, paramTypes))
 
     std::string currentReturnType;
     std::string lastInferredType;
@@ -71,6 +72,8 @@ public:
     void visit(UnaryOpASTNode* node) override;
     void visit(BinaryOpASTNode* node) override;
     void visit(CallExprASTNode* node) override;
+    void visit(MethodCallASTNode* node) override;
+    void visit(ExpressionStmtASTNode* node) override;
 };
 
 } // namespace vit

@@ -85,6 +85,15 @@ const std::string& NativeCompiler::getClangPath() const {
     return clangExecutablePath;
 }
 
+static std::string normalizeWinPath(std::string path) {
+#ifdef _WIN32
+    for (char &c : path) {
+        if (c == '/') c = '\\';
+    }
+#endif
+    return path;
+}
+
 bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const std::string& outputExePath, const std::string& optLevel) {
     if (!isClangAvailable()) {
         std::cerr << "\n[VIT Error] 'clang' compiler was not found on your system PATH or bundled toolchain.\n";
@@ -92,11 +101,13 @@ bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const 
         return false;
     }
 
-    std::string cmd = clangExecutablePath + " " + optLevel + " \"" + irFilePath + "\" -o \"" + outputExePath + "\"";
+    std::string winIrPath = normalizeWinPath(irFilePath);
+    std::string winExePath = normalizeWinPath(outputExePath);
+
+    std::string cmd = clangExecutablePath + " " + optLevel + " \"" + winIrPath + "\" -o \"" + winExePath + "\"";
 
 #ifdef _WIN32
-    // Run initial attempt quietly (suppress stderr/stdout) so fallback won't spam misleading clang errors
-    std::string quietCmd = "\"" + cmd + " > NUL 2>&1\"";
+    std::string quietCmd = "cmd.exe /c \"" + cmd + " > NUL 2>&1\"";
     int exitCode = std::system(quietCmd.c_str());
     if (exitCode != 0) {
         std::vector<std::string> minGwLibPaths = {
@@ -109,8 +120,8 @@ bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const 
         for (const auto& libPath : minGwLibPaths) {
             fallbackCmd += " -L\"" + libPath + "\"";
         }
-        fallbackCmd += " \"" + irFilePath + "\" -o \"" + outputExePath + "\"";
-        std::string fallbackSystemCmd = "\"" + fallbackCmd + "\"";
+        fallbackCmd += " \"" + winIrPath + "\" -o \"" + winExePath + "\"";
+        std::string fallbackSystemCmd = "cmd.exe /c \"" + fallbackCmd + "\"";
         exitCode = std::system(fallbackSystemCmd.c_str());
     }
 #else
@@ -125,12 +136,13 @@ bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const 
 }
 
 int NativeCompiler::runExecutable(const std::string& exePath) {
+    std::string winExePath = normalizeWinPath(exePath);
 #ifdef _WIN32
-    std::string runCmd = "\"" + exePath + "\"";
-    int exitCode = std::system(runCmd.c_str());
-#else
-    int exitCode = std::system(exePath.c_str());
+    if (winExePath.find('\\') == std::string::npos && winExePath.find('/') == std::string::npos) {
+        winExePath = ".\\" + winExePath;
+    }
 #endif
+    int exitCode = std::system(winExePath.c_str());
     return exitCode;
 }
 

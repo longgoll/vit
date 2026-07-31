@@ -170,6 +170,29 @@ public:
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 
+// Node representing a method call expression (e.g. obj.distance())
+class MethodCallASTNode : public ExpressionNode {
+private:
+    std::unique_ptr<ExpressionNode> target;
+    std::string method;
+    std::vector<std::unique_ptr<ExpressionNode>> args;
+
+public:
+    MethodCallASTNode(std::unique_ptr<ExpressionNode> targetExpr,
+                      std::string methodName,
+                      std::vector<std::unique_ptr<ExpressionNode>> arguments)
+        : target(std::move(targetExpr)),
+          method(std::move(methodName)),
+          args(std::move(arguments)) {}
+
+    ExpressionNode* getTarget() const { return target.get(); }
+    const std::string& getMethod() const { return method; }
+    const std::vector<std::unique_ptr<ExpressionNode>>& getArgs() const { return args; }
+
+    NodeType getType() const override { return NodeType::MethodCall; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
 } // namespace vit
 
 #endif // VIT_EXPRESSIONS_H

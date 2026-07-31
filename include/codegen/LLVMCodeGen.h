@@ -32,6 +32,7 @@ private:
     std::stringstream globalDefsStream;
     std::string lastResultReg;
     std::string lastResultType; // "number", "boolean", "string", struct name, array type
+    std::string currentFunctionName;
     std::string currentFunctionReturnType;
     std::string currentBlockLabel;
     std::unordered_map<std::string, std::string> functionReturnTypes;
@@ -82,6 +83,8 @@ public:
     void visit(UnaryOpASTNode* node) override;
     void visit(BinaryOpASTNode* node) override;
     void visit(CallExprASTNode* node) override;
+    void visit(MethodCallASTNode* node) override;
+    void visit(ExpressionStmtASTNode* node) override;
 };
 
 } // namespace vit

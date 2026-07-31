@@ -1,0 +1,7 @@
+// Standard Library Module for String Utilities in VIT Compiler
+// C Runtime String Interop Declarations
+
+extern function strlen(str: string): number;
+extern function strcmp(str1: string, str2: string): number;
+extern function strcpy(dest: string, src: string): string;
+extern function strcat(dest: string, src: string): string;

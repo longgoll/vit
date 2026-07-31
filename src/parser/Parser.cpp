@@ -51,7 +51,8 @@ std::unique_ptr<ProgramASTNode> Parser::parseProgram() {
         } else if (check(TokenType::KwImport)) {
             topLevelStatements.push_back(parseImportDecl());
         } else {
-            topLevelStatements.push_back(parseStatement());
+            auto stmt = parseStatement();
+            if (stmt) topLevelStatements.push_back(std::move(stmt));
         }
     }
 
@@ -99,20 +100,26 @@ std::unique_ptr<StructDeclASTNode> Parser::parseStructDecl() {
     consume(TokenType::LBrace, "Expected '{' to start struct body.");
 
     std::vector<std::pair<std::string, std::string>> fields;
+    std::vector<std::unique_ptr<FunctionDeclASTNode>> methods;
+
     while (!check(TokenType::RBrace) && !check(TokenType::TokEof)) {
-        Token fieldName = consume(TokenType::Identifier, "Expected field name.");
-        consume(TokenType::Colon, "Expected ':' after field name.");
-        Token fieldType = curToken;
-        if (check(TokenType::Identifier) || check(TokenType::KwBoolean) || check(TokenType::KwString) || check(TokenType::KwVoid)) {
-            advance();
-            std::string typeStr = fieldType.lexeme;
-            if (match(TokenType::LBracket)) {
-                consume(TokenType::RBracket, "Expected ']' after '['.");
-                typeStr += "[]";
-            }
-            fields.push_back({fieldName.lexeme, typeStr});
+        if (check(TokenType::KwFunction)) {
+            methods.push_back(parseFunctionDecl(false));
         } else {
-            throw ParseError("Expected field type.", curToken.line, curToken.column);
+            Token fieldName = consume(TokenType::Identifier, "Expected field name or method declaration.");
+            consume(TokenType::Colon, "Expected ':' after field name.");
+            Token fieldType = curToken;
+            if (check(TokenType::Identifier) || check(TokenType::KwBoolean) || check(TokenType::KwString) || check(TokenType::KwVoid)) {
+                advance();
+                std::string typeStr = fieldType.lexeme;
+                if (match(TokenType::LBracket)) {
+                    consume(TokenType::RBracket, "Expected ']' after '['.");
+                    typeStr += "[]";
+                }
+                fields.push_back({fieldName.lexeme, typeStr});
+            } else {
+                throw ParseError("Expected field type.", curToken.line, curToken.column);
+            }
         }
         if (!match(TokenType::Comma)) {
             if (check(TokenType::RBrace)) break;
@@ -121,7 +128,7 @@ std::unique_ptr<StructDeclASTNode> Parser::parseStructDecl() {
     consume(TokenType::RBrace, "Expected '}' after struct body.");
     match(TokenType::Semicolon); // Optional semicolon
 
-    return std::make_unique<StructDeclASTNode>(nameTok.lexeme, std::move(fields));
+    return std::make_unique<StructDeclASTNode>(nameTok.lexeme, std::move(fields), std::move(methods));
 }
 
 std::vector<Parameter> Parser::parseParameterList() {
@@ -155,7 +162,8 @@ std::unique_ptr<BlockASTNode> Parser::parseBlock() {
     std::vector<std::unique_ptr<StatementNode>> statements;
 
     while (!check(TokenType::RBrace) && !check(TokenType::TokEof)) {
-        statements.push_back(parseStatement());
+        auto stmt = parseStatement();
+        if (stmt) statements.push_back(std::move(stmt));
     }
 
     consume(TokenType::RBrace, "Expected '}' to end block.");
@@ -287,8 +295,7 @@ std::unique_ptr<StatementNode> Parser::parseIdentifierStatement() {
     }
 
     consume(TokenType::Semicolon, "Expected ';' after expression statement.");
-    // Function call statement wrapper or dummy expression statement
-    return nullptr;
+    return std::make_unique<ExpressionStmtASTNode>(std::move(lhsExpr));
 }
 
 std::unique_ptr<IfASTNode> Parser::parseIf() {
@@ -503,7 +510,18 @@ std::unique_ptr<ExpressionNode> Parser::parsePostfix(std::unique_ptr<ExpressionN
     while (true) {
         if (match(TokenType::Dot)) {
             Token memTok = consume(TokenType::Identifier, "Expected member name after '.'.");
-            expr = std::make_unique<MemberAccessASTNode>(std::move(expr), memTok.lexeme);
+            if (match(TokenType::LParen)) {
+                std::vector<std::unique_ptr<ExpressionNode>> args;
+                if (!check(TokenType::RParen)) {
+                    do {
+                        args.push_back(parseExpression());
+                    } while (match(TokenType::Comma));
+                }
+                consume(TokenType::RParen, "Expected ')' after method call arguments.");
+                expr = std::make_unique<MethodCallASTNode>(std::move(expr), memTok.lexeme, std::move(args));
+            } else {
+                expr = std::make_unique<MemberAccessASTNode>(std::move(expr), memTok.lexeme);
+            }
         } else if (match(TokenType::LBracket)) {
             auto indexExpr = parseExpression();
             consume(TokenType::RBracket, "Expected ']' after array index.");

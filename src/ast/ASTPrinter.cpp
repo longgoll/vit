@@ -104,6 +104,9 @@ void ASTPrinter::visit(StructDeclASTNode* node) {
         printIndent();
         out << field.first << ": " << field.second << "\n";
     }
+    for (const auto& method : node->getMethods()) {
+        method->accept(this);
+    }
     indentLevel--;
 }
 
@@ -300,6 +303,27 @@ void ASTPrinter::visit(CallExprASTNode* node) {
         arg->accept(this);
     }
     indentLevel--;
+}
+
+void ASTPrinter::visit(MethodCallASTNode* node) {
+    printIndent();
+    out << "[MethodCallASTNode] method: ." << node->getMethod() << "\n";
+    indentLevel++;
+    if (node->getTarget()) node->getTarget()->accept(this);
+    for (const auto& arg : node->getArgs()) {
+        arg->accept(this);
+    }
+    indentLevel--;
+}
+
+void ASTPrinter::visit(ExpressionStmtASTNode* node) {
+    printIndent();
+    out << "[ExpressionStmtASTNode]\n";
+    if (node->getExpression()) {
+        indentLevel++;
+        node->getExpression()->accept(this);
+        indentLevel--;
+    }
 }
 
 } // namespace vit

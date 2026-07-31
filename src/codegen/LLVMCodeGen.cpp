@@ -63,17 +63,49 @@ std::string LLVMCodeGen::generateIR(ProgramASTNode* program) {
 
     fullModule << "declare i32 @printf(i8*, ...)\n";
     fullModule << "declare i8* @malloc(i64)\n";
-    fullModule << "declare void @free(i8*)\n\n";
+    fullModule << "declare void @free(i8*)\n";
+    fullModule << "declare i64 @strlen(i8*)\n";
+    fullModule << "declare i32 @strcmp(i8*, i8*)\n";
+    fullModule << "declare i8* @strcpy(i8*, i8*)\n";
+    fullModule << "declare i8* @strcat(i8*, i8*)\n\n";
     fullModule << irStream.str();
 
     return fullModule.str();
 }
 
 void LLVMCodeGen::visit(ProgramASTNode* node) {
+    // Pass 1: Register struct definitions and method return types
+    for (const auto& stmt : node->getTopLevelStatements()) {
+        if (stmt->getType() == NodeType::StructDecl) {
+            auto structDecl = static_cast<StructDeclASTNode*>(stmt.get());
+            StructInfo info;
+            info.name = structDecl->getName();
+            info.fields = structDecl->getFields();
+            for (int i = 0; i < (int)structDecl->getFields().size(); ++i) {
+                info.fieldIndices[structDecl->getFields()[i].first] = i;
+            }
+            structs[structDecl->getName()] = info;
+
+            globalDefsStream << "%struct." << structDecl->getName() << " = type { ";
+            for (size_t i = 0; i < structDecl->getFields().size(); ++i) {
+                globalDefsStream << getLLVMType(structDecl->getFields()[i].second);
+                if (i + 1 < structDecl->getFields().size()) globalDefsStream << ", ";
+            }
+            globalDefsStream << " }\n";
+
+            for (const auto& method : structDecl->getMethods()) {
+                std::string mangledName = "_" + structDecl->getName() + "_" + method->getName();
+                functionReturnTypes[mangledName] = method->getReturnType();
+            }
+        }
+    }
+
+    // Pass 2: Register top-level function return types
     for (const auto& func : node->getFunctions()) {
         functionReturnTypes[func->getName()] = func->getReturnType();
     }
 
+    // Pass 3: Emit IR for struct methods and functions
     for (const auto& stmt : node->getTopLevelStatements()) {
         if (stmt->getType() == NodeType::StructDecl) {
             stmt->accept(this);
@@ -86,20 +118,66 @@ void LLVMCodeGen::visit(ProgramASTNode* node) {
 }
 
 void LLVMCodeGen::visit(StructDeclASTNode* node) {
-    StructInfo info;
-    info.name = node->getName();
-    info.fields = node->getFields();
-    for (int i = 0; i < (int)node->getFields().size(); ++i) {
-        info.fieldIndices[node->getFields()[i].first] = i;
-    }
-    structs[node->getName()] = info;
+    // Generate LLVM IR for methods inside struct
+    for (const auto& method : node->getMethods()) {
+        std::string mangledName = "_" + node->getName() + "_" + method->getName();
+        functionReturnTypes[mangledName] = method->getReturnType();
 
-    globalDefsStream << "%struct." << node->getName() << " = type { ";
-    for (size_t i = 0; i < node->getFields().size(); ++i) {
-        globalDefsStream << getLLVMType(node->getFields()[i].second);
-        if (i + 1 < node->getFields().size()) globalDefsStream << ", ";
+        std::vector<Parameter> methodParams;
+        methodParams.push_back(Parameter{"this", node->getName()});
+        for (const auto& p : method->getParams()) {
+            methodParams.push_back(p);
+        }
+
+        FunctionDeclASTNode methodDecl(mangledName, methodParams, method->getReturnType(), nullptr);
+
+        symbolTable.clear();
+        heapScopeStack.clear();
+        regCounter = 0;
+        blockHasTerminator = false;
+
+        currentFunctionReturnType = method->getReturnType();
+        std::string llvmRetType = getLLVMType(currentFunctionReturnType);
+
+        irStream << "define " << llvmRetType << " @" << mangledName << "(";
+        for (size_t i = 0; i < methodParams.size(); ++i) {
+            irStream << getLLVMType(methodParams[i].typeName) << " %" << methodParams[i].name;
+            if (i + 1 < methodParams.size()) irStream << ", ";
+        }
+        irStream << ") {\n";
+
+        currentBlockLabel = "entry";
+        irStream << "entry:\n";
+
+        for (const auto& param : methodParams) {
+            std::string paramLLVMType = getLLVMType(param.typeName);
+            std::string addrReg = newReg();
+            emitIndent();
+            irStream << addrReg << " = alloca " << paramLLVMType << ", align 8\n";
+            emitIndent();
+            irStream << "store " << paramLLVMType << " %" << param.name << ", " << paramLLVMType << "* " << addrReg << ", align 8\n";
+            symbolTable[param.name] = {addrReg, param.typeName};
+        }
+
+        if (method->getBody()) {
+            method->getBody()->accept(this);
+        }
+
+        if (!blockHasTerminator) {
+            emitIndent();
+            if (llvmRetType == "void") {
+                irStream << "ret void\n";
+            } else if (llvmRetType == "i1") {
+                irStream << "ret i1 false\n";
+            } else if (llvmRetType == "i8*") {
+                irStream << "ret i8* null\n";
+            } else {
+                irStream << "ret double 0.000000e+00\n";
+            }
+        }
+
+        irStream << "}\n\n";
     }
-    globalDefsStream << " }\n";
 }
 
 void LLVMCodeGen::cleanupCurrentScope() {
@@ -114,8 +192,16 @@ void LLVMCodeGen::cleanupCurrentScope() {
         irStream << ptrReg << " = load " << llvmType << ", " << llvmType << "* " << var.addrReg << ", align 8\n";
         
         std::string i8Ptr = newReg();
-        emitIndent();
-        irStream << i8Ptr << " = bitcast " << llvmType << " " << ptrReg << " to i8*\n";
+        if (var.typeName.size() > 2 && var.typeName.substr(var.typeName.size() - 2) == "[]") {
+            std::string baseDoublePtr = newReg();
+            emitIndent();
+            irStream << baseDoublePtr << " = getelementptr inbounds double, double* " << ptrReg << ", i64 -1\n";
+            emitIndent();
+            irStream << i8Ptr << " = bitcast double* " << baseDoublePtr << " to i8*\n";
+        } else {
+            emitIndent();
+            irStream << i8Ptr << " = bitcast " << llvmType << " " << ptrReg << " to i8*\n";
+        }
         emitIndent();
         irStream << "call void @free(i8* " << i8Ptr << ")\n";
     }
@@ -131,8 +217,9 @@ void LLVMCodeGen::visit(FunctionDeclASTNode* node) {
     regCounter = 0;
     blockHasTerminator = false;
 
+    currentFunctionName = node->getName();
     currentFunctionReturnType = node->getReturnType();
-    std::string llvmRetType = getLLVMType(currentFunctionReturnType);
+    std::string llvmRetType = (currentFunctionName == "main") ? "i32" : getLLVMType(currentFunctionReturnType);
 
     if (node->getIsExtern()) {
         irStream << "declare " << llvmRetType << " @" << node->getName() << "(";
@@ -174,7 +261,9 @@ void LLVMCodeGen::visit(FunctionDeclASTNode* node) {
 
     if (!blockHasTerminator) {
         emitIndent();
-        if (llvmRetType == "void") {
+        if (currentFunctionName == "main") {
+            irStream << "ret i32 0\n";
+        } else if (llvmRetType == "void") {
             irStream << "ret void\n";
         } else if (llvmRetType == "i1") {
             irStream << "ret i1 false\n";
@@ -190,9 +279,14 @@ void LLVMCodeGen::visit(FunctionDeclASTNode* node) {
 void LLVMCodeGen::visit(BlockASTNode* node) {
     heapScopeStack.push_back({});
     for (const auto& stmt : node->getStatements()) {
+        if (blockHasTerminator) break;
         stmt->accept(this);
     }
-    cleanupCurrentScope();
+    if (!blockHasTerminator) {
+        cleanupCurrentScope();
+    } else if (!heapScopeStack.empty()) {
+        heapScopeStack.pop_back();
+    }
 }
 
 void LLVMCodeGen::visit(VarDeclASTNode* node) {
@@ -345,11 +439,17 @@ void LLVMCodeGen::visit(ArrayLiteralASTNode* node) {
 
     std::string mallocCall = newReg();
     emitIndent();
-    irStream << mallocCall << " = call i8* @malloc(i64 " << (count * 8) << ")\n";
+    irStream << mallocCall << " = call i8* @malloc(i64 " << ((count + 1) * 8) << ")\n";
 
-    std::string ptrReg = newReg();
+    std::string basePtr = newReg();
     emitIndent();
-    irStream << ptrReg << " = bitcast i8* " << mallocCall << " to double*\n";
+    irStream << basePtr << " = bitcast i8* " << mallocCall << " to double*\n";
+    emitIndent();
+    irStream << "store double " << (double)count << ".0, double* " << basePtr << ", align 8\n";
+
+    std::string elemPtr = newReg();
+    emitIndent();
+    irStream << elemPtr << " = getelementptr inbounds double, double* " << basePtr << ", i64 1\n";
 
     for (size_t i = 0; i < count; ++i) {
         node->getElements()[i]->accept(this);
@@ -357,12 +457,12 @@ void LLVMCodeGen::visit(ArrayLiteralASTNode* node) {
 
         std::string gepReg = newReg();
         emitIndent();
-        irStream << gepReg << " = getelementptr inbounds double, double* " << ptrReg << ", i64 " << i << "\n";
+        irStream << gepReg << " = getelementptr inbounds double, double* " << elemPtr << ", i64 " << i << "\n";
         emitIndent();
         irStream << "store double " << elemVal << ", double* " << gepReg << ", align 8\n";
     }
 
-    lastResultReg = ptrReg;
+    lastResultReg = elemPtr;
     lastResultType = "number[]";
 }
 
@@ -384,6 +484,31 @@ void LLVMCodeGen::visit(MemberAccessASTNode* node) {
     node->getTarget()->accept(this);
     std::string structPtrReg = lastResultReg;
     std::string structType = lastResultType;
+
+    if (node->getMember() == "length") {
+        if (structType == "string") {
+            std::string lenI64 = newReg();
+            emitIndent();
+            irStream << lenI64 << " = call i64 @strlen(i8* " << structPtrReg << ")\n";
+            std::string lenDbl = newReg();
+            emitIndent();
+            irStream << lenDbl << " = uitofp i64 " << lenI64 << " to double\n";
+            lastResultReg = lenDbl;
+            lastResultType = "number";
+            return;
+        }
+        if (structType.size() > 2 && structType.substr(structType.size() - 2) == "[]") {
+            std::string headerPtr = newReg();
+            emitIndent();
+            irStream << headerPtr << " = getelementptr inbounds double, double* " << structPtrReg << ", i64 -1\n";
+            std::string lenDbl = newReg();
+            emitIndent();
+            irStream << lenDbl << " = load double, double* " << headerPtr << ", align 8\n";
+            lastResultReg = lenDbl;
+            lastResultType = "number";
+            return;
+        }
+    }
 
     auto it = structs.find(structType);
     if (it != structs.end()) {
@@ -537,6 +662,39 @@ void LLVMCodeGen::visit(BinaryOpASTNode* node) {
     std::string resultReg = newReg();
 
     if (op == "+") {
+        if (lhsType == "string" || rhsType == "string") {
+            std::string len1 = newReg();
+            emitIndent();
+            irStream << len1 << " = call i64 @strlen(i8* " << lhs << ")\n";
+
+            std::string len2 = newReg();
+            emitIndent();
+            irStream << len2 << " = call i64 @strlen(i8* " << rhs << ")\n";
+
+            std::string totalLen = newReg();
+            emitIndent();
+            irStream << totalLen << " = add i64 " << len1 << ", " << len2 << "\n";
+
+            std::string allocLen = newReg();
+            emitIndent();
+            irStream << allocLen << " = add i64 " << totalLen << ", 1\n";
+
+            std::string bufReg = newReg();
+            emitIndent();
+            irStream << bufReg << " = call i8* @malloc(i64 " << allocLen << ")\n";
+
+            std::string dummy1 = newReg();
+            emitIndent();
+            irStream << dummy1 << " = call i8* @strcpy(i8* " << bufReg << ", i8* " << lhs << ")\n";
+
+            std::string dummy2 = newReg();
+            emitIndent();
+            irStream << dummy2 << " = call i8* @strcat(i8* " << bufReg << ", i8* " << rhs << ")\n";
+
+            lastResultReg = bufReg;
+            lastResultType = "string";
+            return;
+        }
         emitIndent();
         irStream << resultReg << " = fadd double " << lhs << ", " << rhs << "\n";
         lastResultType = "number";
@@ -553,6 +711,18 @@ void LLVMCodeGen::visit(BinaryOpASTNode* node) {
         irStream << resultReg << " = fdiv double " << lhs << ", " << rhs << "\n";
         lastResultType = "number";
     } else if (op == ">" || op == "<" || op == "==" || op == "!=" || op == ">=" || op == "<=") {
+        if (lhsType == "string" && rhsType == "string") {
+            std::string cmpReg = newReg();
+            emitIndent();
+            irStream << cmpReg << " = call i32 @strcmp(i8* " << lhs << ", i8* " << rhs << ")\n";
+            std::string condCode = (op == "==") ? "eq" : (op == "!=") ? "ne" : "eq";
+            emitIndent();
+            irStream << resultReg << " = icmp " << condCode << " i32 " << cmpReg << ", 0\n";
+            lastResultType = "boolean";
+            lastResultReg = resultReg;
+            return;
+        }
+
         std::string condCode = "oeq";
         if (op == ">") condCode = "ogt";
         else if (op == "<") condCode = "olt";
@@ -815,11 +985,54 @@ void LLVMCodeGen::visit(PrintASTNode* node) {
 }
 
 void LLVMCodeGen::visit(ReturnASTNode* node) {
-    blockHasTerminator = true;
+    std::string retVal = "";
+    std::string retType = "";
     if (node->getValue()) {
         node->getValue()->accept(this);
-        std::string retVal = lastResultReg;
-        std::string retType = lastResultType;
+        retVal = lastResultReg;
+        retType = lastResultType;
+    }
+
+    for (auto it = heapScopeStack.rbegin(); it != heapScopeStack.rend(); ++it) {
+        for (const auto& var : *it) {
+            std::string llvmType = getLLVMType(var.typeName);
+            std::string ptrReg = newReg();
+            emitIndent();
+            irStream << ptrReg << " = load " << llvmType << ", " << llvmType << "* " << var.addrReg << ", align 8\n";
+            
+            std::string i8Ptr = newReg();
+            if (var.typeName.size() > 2 && var.typeName.substr(var.typeName.size() - 2) == "[]") {
+                std::string baseDoublePtr = newReg();
+                emitIndent();
+                irStream << baseDoublePtr << " = getelementptr inbounds double, double* " << ptrReg << ", i64 -1\n";
+                emitIndent();
+                irStream << i8Ptr << " = bitcast double* " << baseDoublePtr << " to i8*\n";
+            } else {
+                emitIndent();
+                irStream << i8Ptr << " = bitcast " << llvmType << " " << ptrReg << " to i8*\n";
+            }
+            emitIndent();
+            irStream << "call void @free(i8* " << i8Ptr << ")\n";
+        }
+    }
+
+    blockHasTerminator = true;
+    if (!retVal.empty()) {
+        if (currentFunctionName == "main") {
+            std::string i32Reg = newReg();
+            if (retType == "number") {
+                emitIndent();
+                irStream << i32Reg << " = fptosi double " << retVal << " to i32\n";
+            } else if (retType == "boolean") {
+                emitIndent();
+                irStream << i32Reg << " = zext i1 " << retVal << " to i32\n";
+            } else {
+                i32Reg = "0";
+            }
+            emitIndent();
+            irStream << "ret i32 " << i32Reg << "\n";
+            return;
+        }
 
         std::string targetLLVMType = (currentFunctionReturnType == "boolean") ? "i1" :
                                      (currentFunctionReturnType == "string") ? "i8*" :
@@ -841,7 +1054,60 @@ void LLVMCodeGen::visit(ReturnASTNode* node) {
         irStream << "ret " << targetLLVMType << " " << retVal << "\n";
     } else {
         emitIndent();
-        irStream << "ret void\n";
+        if (currentFunctionName == "main") {
+            irStream << "ret i32 0\n";
+        } else {
+            irStream << "ret void\n";
+        }
+    }
+}
+
+void LLVMCodeGen::visit(MethodCallASTNode* node) {
+    node->getTarget()->accept(this);
+    std::string targetReg = lastResultReg;
+    std::string targetType = lastResultType;
+
+    std::vector<std::string> argRegs;
+    std::vector<std::string> argTypes;
+
+    argRegs.push_back(targetReg);
+    argTypes.push_back(targetType);
+
+    for (const auto& arg : node->getArgs()) {
+        arg->accept(this);
+        argRegs.push_back(lastResultReg);
+        argTypes.push_back(lastResultType);
+    }
+
+    std::string mangledName = "_" + targetType + "_" + node->getMethod();
+    std::string retType = "number";
+    auto it = functionReturnTypes.find(mangledName);
+    if (it != functionReturnTypes.end()) {
+        retType = it->second;
+    }
+
+    std::string llvmRetType = getLLVMType(retType);
+    std::string callReg = "";
+    emitIndent();
+    if (llvmRetType != "void") {
+        callReg = newReg();
+        irStream << callReg << " = ";
+    }
+    irStream << "call " << llvmRetType << " @" << mangledName << "(";
+    for (size_t i = 0; i < argRegs.size(); ++i) {
+        std::string pType = getLLVMType(argTypes[i]);
+        irStream << pType << " " << argRegs[i];
+        if (i + 1 < argRegs.size()) irStream << ", ";
+    }
+    irStream << ")\n";
+
+    lastResultReg = callReg;
+    lastResultType = retType;
+}
+
+void LLVMCodeGen::visit(ExpressionStmtASTNode* node) {
+    if (node->getExpression()) {
+        node->getExpression()->accept(this);
     }
 }
 

@@ -1,0 +1,33 @@
+import { sqrt } from "std/math";
+
+struct Point {
+    x: number,
+    y: number,
+    function distance(): number {
+        return sqrt(this.x * this.x + this.y * this.y);
+    },
+    function scale(factor: number): void {
+        this.x = this.x * factor;
+        this.y = this.y * factor;
+    }
+}
+
+function main(): number {
+    print("=== Test Phase-5: Struct Methods ===");
+
+    let p: Point;
+    p.x = 3.0;
+    p.y = 4.0;
+
+    let d = p.distance();
+    print("Distance from origin (expect 5.0):");
+    print(d);
+
+    p.scale(2.0);
+    print("Scaled x (expect 6.0):");
+    print(p.x);
+    print("Scaled distance (expect 10.0):");
+    print(p.distance());
+
+    return 0;
+}
