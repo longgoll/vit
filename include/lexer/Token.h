@@ -29,6 +29,8 @@ enum class TokenType {
     KwImport,   // import
     KwFrom,     // from
     KwType,     // type
+    KwEnum,     // enum
+    KwMatch,    // match
 
     // Identifiers & Literals
     Identifier,    // e.g. add, main, x, number
@@ -102,6 +104,8 @@ inline std::string_view tokenTypeToString(TokenType type) {
         case TokenType::KwImport: return "import";
         case TokenType::KwFrom: return "from";
         case TokenType::KwType: return "type";
+        case TokenType::KwEnum: return "enum";
+        case TokenType::KwMatch: return "match";
         case TokenType::Identifier: return "Identifier";
         case TokenType::NumberLiteral: return "NumberLiteral";
         case TokenType::StringLiteral: return "StringLiteral";

@@ -48,7 +48,10 @@ std::unique_ptr<ProgramASTNode> Parser::parseProgram() {
             functions.push_back(parseFunctionDecl(false));
         } else if (check(TokenType::KwStruct)) {
             topLevelStatements.push_back(parseStructDecl());
+        } else if (check(TokenType::KwEnum)) {
+            topLevelStatements.push_back(parseEnumDecl());
         } else if (check(TokenType::KwImport)) {
+
             topLevelStatements.push_back(parseImportDecl());
         } else if (check(TokenType::KwType)) {
             topLevelStatements.push_back(parseTypeAlias());
@@ -106,11 +109,26 @@ std::string Parser::parseTypeSpec() {
         Token typeTok = curToken;
         advance();
         result = typeTok.lexeme;
+        if (match(TokenType::Less)) {
+            result += "<";
+            bool first = true;
+            while (!check(TokenType::Greater) && !check(TokenType::TokEof)) {
+                if (!first) {
+                    consume(TokenType::Comma, "Expected ',' between generic type arguments.");
+                    result += ", ";
+                }
+                first = false;
+                result += parseTypeSpec();
+            }
+            consume(TokenType::Greater, "Expected '>' after generic type arguments.");
+            result += ">";
+        }
         if (match(TokenType::LBracket)) {
             consume(TokenType::RBracket, "Expected ']' after '['.");
             result += "[]";
         }
     } else {
+
         throw ParseError("Expected type name.", curToken.line, curToken.column);
     }
     return result;
@@ -125,9 +143,23 @@ std::unique_ptr<TypeAliasASTNode> Parser::parseTypeAlias() {
     return std::make_unique<TypeAliasASTNode>(aliasTok.lexeme, targetType);
 }
 
+std::vector<std::string> Parser::parseGenericParams() {
+    std::vector<std::string> params;
+    if (match(TokenType::Less)) {
+        do {
+            Token t = consume(TokenType::Identifier, "Expected generic parameter identifier.");
+            params.push_back(t.lexeme);
+        } while (match(TokenType::Comma));
+        consume(TokenType::Greater, "Expected '>' after generic parameter list.");
+    }
+    return params;
+}
+
 std::unique_ptr<FunctionDeclASTNode> Parser::parseFunctionDecl(bool isExtern) {
     consume(TokenType::KwFunction, "Expected 'function' keyword.");
     Token nameTok = consume(TokenType::Identifier, "Expected function name.");
+
+    auto genParams = parseGenericParams();
 
     consume(TokenType::LParen, "Expected '(' after function name.");
     std::vector<Parameter> params = parseParameterList();
@@ -146,13 +178,15 @@ std::unique_ptr<FunctionDeclASTNode> Parser::parseFunctionDecl(bool isExtern) {
     }
 
     return std::make_unique<FunctionDeclASTNode>(
-        nameTok.lexeme, std::move(params), returnType, std::move(body), isExtern
+        nameTok.lexeme, std::move(params), returnType, std::move(body), isExtern, std::move(genParams)
     );
 }
 
 std::unique_ptr<StructDeclASTNode> Parser::parseStructDecl() {
     consume(TokenType::KwStruct, "Expected 'struct' keyword.");
     Token nameTok = consume(TokenType::Identifier, "Expected struct name.");
+    auto genParams = parseGenericParams();
+
     consume(TokenType::LBrace, "Expected '{' to start struct body.");
 
     std::vector<std::pair<std::string, std::string>> fields;
@@ -174,8 +208,84 @@ std::unique_ptr<StructDeclASTNode> Parser::parseStructDecl() {
     consume(TokenType::RBrace, "Expected '}' after struct body.");
     match(TokenType::Semicolon); // Optional semicolon
 
-    return std::make_unique<StructDeclASTNode>(nameTok.lexeme, std::move(fields), std::move(methods));
+    return std::make_unique<StructDeclASTNode>(nameTok.lexeme, std::move(fields), std::move(methods), std::move(genParams));
 }
+
+std::unique_ptr<EnumDeclASTNode> Parser::parseEnumDecl() {
+    consume(TokenType::KwEnum, "Expected 'enum' keyword.");
+    Token nameTok = consume(TokenType::Identifier, "Expected enum name.");
+    auto genParams = parseGenericParams();
+    consume(TokenType::LBrace, "Expected '{' to start enum body.");
+
+    std::vector<EnumVariant> variants;
+    while (!check(TokenType::RBrace) && !check(TokenType::TokEof)) {
+        Token varTok = consume(TokenType::Identifier, "Expected enum variant name.");
+        std::vector<std::string> payloadTypes;
+        if (match(TokenType::LParen)) {
+            if (!check(TokenType::RParen)) {
+                do {
+                    payloadTypes.push_back(parseTypeSpec());
+                } while (match(TokenType::Comma));
+            }
+            consume(TokenType::RParen, "Expected ')' after variant payload types.");
+        }
+        variants.push_back({varTok.lexeme, std::move(payloadTypes)});
+        if (!match(TokenType::Comma)) {
+            if (check(TokenType::RBrace)) break;
+        }
+    }
+    consume(TokenType::RBrace, "Expected '}' after enum body.");
+    match(TokenType::Semicolon);
+
+    return std::make_unique<EnumDeclASTNode>(nameTok.lexeme, std::move(genParams), std::move(variants));
+}
+
+std::unique_ptr<MatchASTNode> Parser::parseMatch() {
+    consume(TokenType::KwMatch, "Expected 'match' keyword.");
+    consume(TokenType::LParen, "Expected '(' after 'match'.");
+    auto targetExpr = parseExpression();
+    consume(TokenType::RParen, "Expected ')' after match target expression.");
+    consume(TokenType::LBrace, "Expected '{' to start match cases.");
+
+    std::vector<MatchCase> cases;
+    while (!check(TokenType::RBrace) && !check(TokenType::TokEof)) {
+        Token firstTok = consume(TokenType::Identifier, "Expected variant pattern identifier in match case.");
+        std::string pattern = firstTok.lexeme;
+        if (match(TokenType::Dot)) {
+            Token secondTok = consume(TokenType::Identifier, "Expected variant name after '.' in match pattern.");
+            pattern += "." + secondTok.lexeme;
+        }
+
+        std::vector<std::string> bindings;
+        if (match(TokenType::LParen)) {
+            if (!check(TokenType::RParen)) {
+                do {
+                    Token b = consume(TokenType::Identifier, "Expected binding variable name in match pattern.");
+                    bindings.push_back(b.lexeme);
+                } while (match(TokenType::Comma));
+            }
+            consume(TokenType::RParen, "Expected ')' after pattern bindings.");
+        }
+
+        consume(TokenType::Arrow, "Expected '=>' in match case.");
+
+        std::unique_ptr<StatementNode> body;
+        if (check(TokenType::LBrace)) {
+            body = parseBlock();
+        } else {
+            auto expr = parseExpression();
+            match(TokenType::Semicolon);
+            body = std::make_unique<ExpressionStmtASTNode>(std::move(expr));
+        }
+
+        cases.push_back({pattern, std::move(bindings), std::move(body)});
+        match(TokenType::Comma);
+    }
+    consume(TokenType::RBrace, "Expected '}' after match cases.");
+
+    return std::make_unique<MatchASTNode>(std::move(targetExpr), std::move(cases));
+}
+
 
 std::vector<Parameter> Parser::parseParameterList() {
     std::vector<Parameter> params;
@@ -234,6 +344,15 @@ std::unique_ptr<StatementNode> Parser::parseStatement() {
     if (check(TokenType::KwStruct)) {
         return parseStructDecl();
     }
+    if (check(TokenType::KwEnum)) {
+        return parseEnumDecl();
+    }
+    if (check(TokenType::KwMatch)) {
+        auto matchNode = parseMatch();
+        match(TokenType::Semicolon);
+        return std::make_unique<ExpressionStmtASTNode>(std::move(matchNode));
+    }
+
     if (check(TokenType::KwLet) || check(TokenType::KwConst)) {
         return parseVarDecl();
     }
@@ -589,14 +708,47 @@ std::unique_ptr<ExpressionNode> Parser::parsePrimary() {
     } else if (check(TokenType::KwFalse)) {
         advance();
         expr = std::make_unique<BooleanLiteralASTNode>(false);
+    } else if (check(TokenType::KwMatch)) {
+        expr = parseMatch();
     } else if (check(TokenType::LBracket)) {
         expr = parseArrayLiteral();
     } else if (check(TokenType::Identifier)) {
         Token idTok = curToken;
         advance();
 
-        // Function call: add(x, y)
-        if (match(TokenType::LParen)) {
+        if (check(TokenType::Less)) {
+            Lexer savedLexer = lexer;
+            Token savedToken = curToken;
+            advance(); // consume '<'
+            std::vector<std::string> typeArgs;
+            bool isGenericCall = false;
+            try {
+                do {
+                    typeArgs.push_back(parseTypeSpec());
+                } while (match(TokenType::Comma));
+                if (match(TokenType::Greater) && check(TokenType::LParen)) {
+                    isGenericCall = true;
+                }
+            } catch (...) {
+                isGenericCall = false;
+            }
+
+            if (isGenericCall) {
+                consume(TokenType::LParen, "Expected '(' after generic type arguments.");
+                std::vector<std::unique_ptr<ExpressionNode>> args;
+                if (!check(TokenType::RParen)) {
+                    do {
+                        args.push_back(parseExpression());
+                    } while (match(TokenType::Comma));
+                }
+                consume(TokenType::RParen, "Expected ')' after generic call arguments.");
+                expr = std::make_unique<CallExprASTNode>(idTok.lexeme, std::move(args), std::move(typeArgs));
+            } else {
+                lexer = savedLexer;
+                curToken = savedToken;
+                expr = std::make_unique<VariableExprASTNode>(idTok.lexeme);
+            }
+        } else if (match(TokenType::LParen)) {
             std::vector<std::unique_ptr<ExpressionNode>> args;
             if (!check(TokenType::RParen)) {
                 do {
@@ -610,6 +762,7 @@ std::unique_ptr<ExpressionNode> Parser::parsePrimary() {
             expr = std::make_unique<VariableExprASTNode>(idTok.lexeme);
         }
     } else if (check(TokenType::LParen)) {
+
         if (isLambdaLookahead()) {
             expr = parseLambda();
         } else {

@@ -1,0 +1,7 @@
+// std/io.vit - Standard I/O Library for Vit
+
+extern function puts(str: string): number;
+
+function printLine(text: string): void {
+    puts(text);
+}

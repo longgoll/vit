@@ -76,8 +76,12 @@ void SemanticAnalyzer::visit(ProgramASTNode* node) {
                 }
                 structMethodsTable[structDecl->getName()][method->getName()] = {method->getReturnType(), paramTypes};
             }
+        } else if (stmt->getType() == NodeType::EnumDecl) {
+            auto enumDecl = static_cast<EnumDeclASTNode*>(stmt.get());
+            enumTable[enumDecl->getName()] = enumDecl->getVariants();
         }
     }
+
 
     for (const auto& func : node->getFunctions()) {
         std::vector<std::string> paramTypes;
@@ -287,6 +291,10 @@ void SemanticAnalyzer::visit(ArrayLiteralASTNode* node) {
 void SemanticAnalyzer::visit(VariableExprASTNode* node) {
     const SymbolInfo* sym = lookupVariable(node->getName());
     if (!sym) {
+        if (enumTable.find(node->getName()) != enumTable.end()) {
+            lastInferredType = node->getName();
+            return;
+        }
         reportError("Use of undeclared variable '" + node->getName() + "'.");
         lastInferredType = "unknown";
     } else {
@@ -307,6 +315,16 @@ void SemanticAnalyzer::visit(MemberAccessASTNode* node) {
         }
     }
 
+    auto enumIt = enumTable.find(structType);
+    if (enumIt != enumTable.end()) {
+        for (const auto& var : enumIt->second) {
+            if (var.name == node->getMember()) {
+                lastInferredType = structType;
+                return;
+            }
+        }
+    }
+
     auto it = structTable.find(structType);
     if (it != structTable.end()) {
         bool foundField = false;
@@ -317,6 +335,7 @@ void SemanticAnalyzer::visit(MemberAccessASTNode* node) {
                 break;
             }
         }
+
         if (!foundField) {
             reportError("Field '" + node->getMember() + "' does not exist on struct '" + structType + "'.");
             lastInferredType = "unknown";
@@ -478,6 +497,44 @@ void SemanticAnalyzer::visit(MethodCallASTNode* node) {
     lastInferredType = "unknown";
 }
 
+void SemanticAnalyzer::visit(EnumDeclASTNode* node) {
+    enumTable[node->getName()] = node->getVariants();
+}
+
+
+void SemanticAnalyzer::visit(EnumVariantExprASTNode* node) {
+    auto it = enumTable.find(node->getEnumName());
+    if (it != enumTable.end()) {
+        for (const auto& arg : node->getArgs()) {
+            arg->accept(this);
+        }
+        lastInferredType = node->getEnumName();
+        return;
+    }
+    reportError("Unknown enum '" + node->getEnumName() + "'.");
+    lastInferredType = "unknown";
+}
+
+void SemanticAnalyzer::visit(MatchASTNode* node) {
+    if (node->getTarget()) {
+        node->getTarget()->accept(this);
+    }
+
+    for (auto& c : node->getCases()) {
+        enterScope();
+        if (!c.bindings.empty()) {
+            for (const auto& b : c.bindings) {
+                declareVariable(b, "number", false);
+            }
+        }
+        if (c.body) {
+            c.body->accept(this);
+        }
+        exitScope();
+    }
+    lastInferredType = "void";
+}
+
 void SemanticAnalyzer::visit(ExpressionStmtASTNode* node) {
     if (node->getExpression()) {
         node->getExpression()->accept(this);
@@ -485,3 +542,4 @@ void SemanticAnalyzer::visit(ExpressionStmtASTNode* node) {
 }
 
 } // namespace vit
+

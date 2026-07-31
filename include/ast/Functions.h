@@ -15,24 +15,28 @@ private:
     std::string returnType;
     std::unique_ptr<BlockASTNode> body;
     bool isExtern = false;
+    std::vector<std::string> genericParams;
 
 public:
     FunctionDeclASTNode(std::string funcName,
                         std::vector<Parameter> parameters,
                         std::string retType,
                         std::unique_ptr<BlockASTNode> funcBody,
-                        bool externFlag = false)
+                        bool externFlag = false,
+                        std::vector<std::string> genParams = {})
         : name(std::move(funcName)),
           params(std::move(parameters)),
           returnType(std::move(retType)),
           body(std::move(funcBody)),
-          isExtern(externFlag) {}
+          isExtern(externFlag),
+          genericParams(std::move(genParams)) {}
 
     const std::string& getName() const { return name; }
     const std::vector<Parameter>& getParams() const { return params; }
     const std::string& getReturnType() const { return returnType; }
     BlockASTNode* getBody() const { return body.get(); }
     bool getIsExtern() const { return isExtern; }
+    const std::vector<std::string>& getGenericParams() const { return genericParams; }
 
     NodeType getType() const override { return NodeType::FunctionDecl; }
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }

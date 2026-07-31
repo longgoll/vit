@@ -5,6 +5,8 @@
 #include "lexer/Lexer.h"
 #include "parser/Parser.h"
 #include "semantics/SemanticAnalyzer.h"
+#include "semantics/Monomorphizer.h"
+
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -287,7 +289,12 @@ int main(int argc, char* argv[]) {
         std::vector<std::string> visitedFiles = { sourceFilePath };
         resolveImports(programAST.get(), sourceFilePath, visitedFiles);
 
+        // 1.5 Monomorphization Pass (Generics Resolution)
+        Monomorphizer monomorphizer;
+        monomorphizer.process(programAST.get());
+
         if (emitAST) {
+
             std::cout << "\n--- Abstract Syntax Tree (AST) ---\n";
             ASTPrinter printer(std::cout);
             programAST->accept(&printer);

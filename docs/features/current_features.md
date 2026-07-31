@@ -1,6 +1,6 @@
-# Tổng Quan Chức Năng Đang Có (Current Features & Architecture v0.6.0)
+# Tổng Quan Chức Năng Đang Có (Current Features & Architecture v0.7.0)
 
-Tài liệu này dành cho lập trình viên làm việc trên codebase của dự án **VIT Compiler (v0.6.0)**. Tài liệu mô tả các tính năng ngôn ngữ đã hỗ trợ, kiến trúc codebase, cấu trúc thư mục, và hướng dẫn biên dịch/sử dụng.
+Tài liệu này dành cho lập trình viên làm việc trên codebase của dự án **VIT Compiler (v0.7.0)**. Tài liệu mô tả các tính năng ngôn ngữ đã hỗ trợ, kiến trúc codebase, cấu trúc thư mục, và hướng dẫn biên dịch/sử dụng.
 
 ---
 
@@ -8,11 +8,15 @@ Tài liệu này dành cho lập trình viên làm việc trên codebase của d
 
 ### 1.1. Kiểu dữ liệu & Biến
 * **Primitive Types**: `number` (float64 IEEE 754 `double`), `boolean` (`true`/`false`), `string`, `void`.
-* **Composite & Functional Types**:
+* **Composite, Generic & Functional Types**:
+  * **Generics (Parametric Polymorphism)**: Generic struct `struct Stack<T>`, generic function `function identity<T>(item: T): T` giải quyết tại AST Monomorphization Pass.
+  * **Enum & Tagged Unions**: `enum Status { Active, Inactive }`, `enum Option<T> { Some(val: T), None }`.
+  * **Pattern Matching (`match`)**: `match (expr) { Variant => { ... } }`.
   * **Kiểu Hàm (Function Types)**: `(a: number) => number`, `(x: number, y: string) => boolean`.
   * **Định danh Kiểu (Type Aliases)**: `type Mapper = (x: number) => number;`.
   * **Mảng dữ liệu (`Array`)**: `let arr: number[] = [10, 20, 30];`.
   * **Cấu trúc dữ liệu (`struct`)**: `struct Point { x: number, y: number }`.
+
 * **Phương thức của Struct (`Struct Methods`)**: `struct Point { function distance(): number { ... } }` với con trỏ `this`.
 * **Khai báo biến & Suy luận kiểu (`Type Inference`)**:
   * `let x = 10;` (Tự suy luận kiểu `number`)

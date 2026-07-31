@@ -33,6 +33,9 @@ class CallExprASTNode;
 class MethodCallASTNode;
 class LambdaASTNode;
 class TypeAliasASTNode;
+class EnumDeclASTNode;
+class EnumVariantExprASTNode;
+class MatchASTNode;
 class ExpressionStmtASTNode;
 
 class ASTVisitor {
@@ -68,6 +71,9 @@ public:
     virtual void visit(CallExprASTNode* node) = 0;
     virtual void visit(MethodCallASTNode* node) = 0;
     virtual void visit(LambdaASTNode* node) = 0;
+    virtual void visit(EnumDeclASTNode* node) = 0;
+    virtual void visit(EnumVariantExprASTNode* node) = 0;
+    virtual void visit(MatchASTNode* node) = 0;
     virtual void visit(ExpressionStmtASTNode* node) = 0;
 };
 

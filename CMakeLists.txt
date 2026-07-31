@@ -12,7 +12,9 @@ set(SOURCES
     src/lexer/Lexer.cpp
     src/parser/Parser.cpp
     src/semantics/SemanticAnalyzer.cpp
+    src/semantics/Monomorphizer.cpp
     src/codegen/LLVMCodeGen.cpp
+
     src/codegen/NativeCompiler.cpp
     src/main.cpp
 )

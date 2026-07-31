@@ -45,6 +45,9 @@ enum class NodeType {
     MethodCall,
     Lambda,
     TypeAlias,
+    EnumDecl,
+    EnumVariantExpr,
+    Match,
     ExpressionStmt
 };
 

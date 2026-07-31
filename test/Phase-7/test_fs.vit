@@ -1,0 +1,11 @@
+// Test Phase 7: Standard Library File I/O Interop
+import { readFile, writeFile } from "std/fs";
+
+function main(): number {
+    print("Testing File System Standard Library Interop");
+    let res = writeFile("test.txt", "Hello VIT");
+    if (res) {
+        print("File written successfully!");
+    }
+    return 0;
+}

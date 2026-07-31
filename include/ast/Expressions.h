@@ -152,23 +152,30 @@ public:
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 
-// Node representing a function call expression (e.g. add(x, y))
+// Node representing a function call expression (e.g. add(x, y) or identity<string>("VIT"))
 class CallExprASTNode : public ExpressionNode {
 private:
     std::string callee;
     std::vector<std::unique_ptr<ExpressionNode>> args;
+    std::vector<std::string> typeArgs;
 
 public:
     CallExprASTNode(std::string functionName,
-                    std::vector<std::unique_ptr<ExpressionNode>> arguments)
-        : callee(std::move(functionName)), args(std::move(arguments)) {}
+                    std::vector<std::unique_ptr<ExpressionNode>> arguments,
+                    std::vector<std::string> typeArguments = {})
+        : callee(std::move(functionName)),
+          args(std::move(arguments)),
+          typeArgs(std::move(typeArguments)) {}
 
     const std::string& getCallee() const { return callee; }
+    void setCallee(const std::string& newCallee) { callee = newCallee; }
     const std::vector<std::unique_ptr<ExpressionNode>>& getArgs() const { return args; }
+    const std::vector<std::string>& getTypeArgs() const { return typeArgs; }
 
     NodeType getType() const override { return NodeType::CallExpr; }
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
+
 
 // Node representing a method call expression (e.g. obj.distance())
 class MethodCallASTNode : public ExpressionNode {
@@ -217,6 +224,54 @@ public:
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 
+// Node representing an enum variant construction expression (e.g. Option.Some(42.0) or Option.None)
+class EnumVariantExprASTNode : public ExpressionNode {
+private:
+    std::string enumName;
+    std::string variantName;
+    std::vector<std::unique_ptr<ExpressionNode>> args;
+
+public:
+    EnumVariantExprASTNode(std::string enumIdent,
+                           std::string variantIdent,
+                           std::vector<std::unique_ptr<ExpressionNode>> arguments = {})
+        : enumName(std::move(enumIdent)),
+          variantName(std::move(variantIdent)),
+          args(std::move(arguments)) {}
+
+    const std::string& getEnumName() const { return enumName; }
+    const std::string& getVariantName() const { return variantName; }
+    const std::vector<std::unique_ptr<ExpressionNode>>& getArgs() const { return args; }
+
+    NodeType getType() const override { return NodeType::EnumVariantExpr; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+struct MatchCase {
+    std::string variantPattern; // e.g. "Option.Some" or "Some"
+    std::vector<std::string> bindings; // e.g. ["val"]
+    std::unique_ptr<StatementNode> body;
+};
+
+// Node representing pattern matching (e.g. match (expr) { Option.Some(val) => { ... }, Option.None => { ... } })
+class MatchASTNode : public ExpressionNode {
+private:
+    std::unique_ptr<ExpressionNode> target;
+    std::vector<MatchCase> cases;
+
+public:
+    MatchASTNode(std::unique_ptr<ExpressionNode> targetExpr, std::vector<MatchCase> matchCases)
+        : target(std::move(targetExpr)), cases(std::move(matchCases)) {}
+
+    ExpressionNode* getTarget() const { return target.get(); }
+    const std::vector<MatchCase>& getCases() const { return cases; }
+    std::vector<MatchCase>& getCases() { return cases; }
+
+    NodeType getType() const override { return NodeType::Match; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
 } // namespace vit
 
 #endif // VIT_EXPRESSIONS_H
+

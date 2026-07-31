@@ -28,6 +28,7 @@ private:
     std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> structTable; // structName -> fields (name, type)
     std::unordered_map<std::string, std::unordered_map<std::string, std::pair<std::string, std::vector<std::string>>>> structMethodsTable; // structName -> (methodName -> (retType, paramTypes))
     std::unordered_map<std::string, std::string> typeAliasTable; // alias -> concreteType
+    std::unordered_map<std::string, std::vector<EnumVariant>> enumTable; // enumName -> variants
 
     std::string currentReturnType;
     std::string lastInferredType;
@@ -77,8 +78,12 @@ public:
     void visit(CallExprASTNode* node) override;
     void visit(MethodCallASTNode* node) override;
     void visit(LambdaASTNode* node) override;
+    void visit(EnumDeclASTNode* node) override;
+    void visit(EnumVariantExprASTNode* node) override;
+    void visit(MatchASTNode* node) override;
     void visit(ExpressionStmtASTNode* node) override;
 };
+
 
 } // namespace vit
 

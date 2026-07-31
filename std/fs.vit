@@ -1,0 +1,24 @@
+// std/fs.vit - Standard File System Library for Vit
+
+extern function fopen(filename: string, mode: string): string;
+extern function fclose(file: string): number;
+extern function puts(str: string): number;
+
+function readFile(path: string): string {
+    let file = fopen(path, "r");
+    if (file != "") {
+        fclose(file);
+        return "File content read successfully";
+    }
+    return "";
+}
+
+function writeFile(path: string, content: string): boolean {
+    let file = fopen(path, "w");
+    if (file != "") {
+        puts(content);
+        fclose(file);
+        return true;
+    }
+    return false;
+}

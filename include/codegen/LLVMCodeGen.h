@@ -6,7 +6,9 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
+
 
 namespace vit {
 
@@ -37,7 +39,9 @@ private:
     std::string currentBlockLabel;
     std::unordered_map<std::string, std::string> functionReturnTypes;
     std::unordered_map<std::string, StructInfo> structs;
+    std::unordered_set<std::string> enums;
     std::unordered_map<std::string, std::string> typeAliases;
+
     int regCounter = 0;
     int labelCounter = 0;
     int stringCounter = 0;
@@ -89,8 +93,12 @@ public:
     void visit(CallExprASTNode* node) override;
     void visit(MethodCallASTNode* node) override;
     void visit(LambdaASTNode* node) override;
+    void visit(EnumDeclASTNode* node) override;
+    void visit(EnumVariantExprASTNode* node) override;
+    void visit(MatchASTNode* node) override;
     void visit(ExpressionStmtASTNode* node) override;
 };
+
 
 } // namespace vit
 

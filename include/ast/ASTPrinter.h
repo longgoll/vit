@@ -45,8 +45,12 @@ public:
     void visit(CallExprASTNode* node) override;
     void visit(MethodCallASTNode* node) override;
     void visit(LambdaASTNode* node) override;
+    void visit(EnumDeclASTNode* node) override;
+    void visit(EnumVariantExprASTNode* node) override;
+    void visit(MatchASTNode* node) override;
     void visit(ExpressionStmtASTNode* node) override;
 };
+
 
 } // namespace vit
 

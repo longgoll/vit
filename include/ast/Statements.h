@@ -101,22 +101,55 @@ private:
     std::string name;
     std::vector<std::pair<std::string, std::string>> fields; // name -> typeName
     std::vector<std::unique_ptr<FunctionDeclASTNode>> methods;
+    std::vector<std::string> genericParams;
 
 public:
     StructDeclASTNode(std::string structName,
                       std::vector<std::pair<std::string, std::string>> structFields,
-                      std::vector<std::unique_ptr<FunctionDeclASTNode>> structMethods = {})
+                      std::vector<std::unique_ptr<FunctionDeclASTNode>> structMethods = {},
+                      std::vector<std::string> genParams = {})
         : name(std::move(structName)),
           fields(std::move(structFields)),
-          methods(std::move(structMethods)) {}
+          methods(std::move(structMethods)),
+          genericParams(std::move(genParams)) {}
 
     const std::string& getName() const { return name; }
     const std::vector<std::pair<std::string, std::string>>& getFields() const { return fields; }
     const std::vector<std::unique_ptr<FunctionDeclASTNode>>& getMethods() const { return methods; }
+    const std::vector<std::string>& getGenericParams() const { return genericParams; }
 
     NodeType getType() const override { return NodeType::StructDecl; }
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
+
+struct EnumVariant {
+    std::string name;
+    std::vector<std::string> payloadTypes; // Empty if no payload (e.g., Option.None)
+};
+
+// Node representing an enum declaration (e.g. enum Option<T> { Some(val: T), None })
+class EnumDeclASTNode : public StatementNode {
+private:
+    std::string name;
+    std::vector<std::string> genericParams;
+    std::vector<EnumVariant> variants;
+
+public:
+    EnumDeclASTNode(std::string enumName,
+                    std::vector<std::string> genParams,
+                    std::vector<EnumVariant> enumVariants)
+        : name(std::move(enumName)),
+          genericParams(std::move(genParams)),
+          variants(std::move(enumVariants)) {}
+
+    const std::string& getName() const { return name; }
+    const std::vector<std::string>& getGenericParams() const { return genericParams; }
+    const std::vector<EnumVariant>& getVariants() const { return variants; }
+
+    NodeType getType() const override { return NodeType::EnumDecl; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
 
 // Node representing an import statement (e.g. import { sqrt, cos } from "math"; or import "math";)
 class ImportASTNode : public StatementNode {

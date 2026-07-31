@@ -1,0 +1,23 @@
+// Test Phase 7: Enum & Pattern Matching
+
+enum Status {
+    Active,
+    Inactive
+}
+
+function main(): number {
+    print("Testing Enum & Pattern Matching");
+
+    let s = Status.Active;
+
+    match (s) {
+        Status.Active => {
+            print("Status is Active!");
+        },
+        Status.Inactive => {
+            print("Status is Inactive!");
+        }
+    }
+
+    return 0;
+}

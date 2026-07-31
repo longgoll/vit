@@ -38,7 +38,11 @@ std::string LLVMCodeGen::getLLVMType(const std::string& vitTypeRaw) {
     if (it != structs.end()) {
         return "%struct." + vitType + "*";
     }
+    if (enums.count(vitType)) {
+        return "%struct." + vitType + "*";
+    }
     return "double";
+
 }
 
 std::string LLVMCodeGen::generateIR(ProgramASTNode* program) {
@@ -54,8 +58,10 @@ std::string LLVMCodeGen::generateIR(ProgramASTNode* program) {
     symbolTable.clear();
     functionReturnTypes.clear();
     structs.clear();
+    enums.clear();
     typeAliases.clear();
     loopStack.clear();
+
 
     visit(program);
 
@@ -119,8 +125,14 @@ void LLVMCodeGen::visit(ProgramASTNode* node) {
                 std::string mangledName = "_" + structDecl->getName() + "_" + method->getName();
                 functionReturnTypes[mangledName] = method->getReturnType();
             }
+        } else if (stmt->getType() == NodeType::EnumDecl) {
+            auto enumDecl = static_cast<EnumDeclASTNode*>(stmt.get());
+            enums.insert(enumDecl->getName());
+            globalDefsStream << "%struct." << enumDecl->getName() << " = type { i32, i8* }\n";
         }
+
     }
+
 
     // Pass 2: Register top-level function return types
     for (const auto& func : node->getFunctions()) {
@@ -503,6 +515,30 @@ void LLVMCodeGen::visit(VariableExprASTNode* node) {
 }
 
 void LLVMCodeGen::visit(MemberAccessASTNode* node) {
+    if (node->getTarget() && node->getTarget()->getType() == NodeType::VariableExpr) {
+        auto varNode = static_cast<VariableExprASTNode*>(node->getTarget());
+        if (enums.count(varNode->getName())) {
+            std::string targetName = varNode->getName();
+            std::string mallocCall = newReg();
+            emitIndent();
+            irStream << mallocCall << " = call i8* @malloc(i64 16)\n";
+            std::string enumPtr = newReg();
+            emitIndent();
+            irStream << enumPtr << " = bitcast i8* " << mallocCall << " to %struct." << targetName << "*\n";
+
+            std::string tagPtr = newReg();
+            emitIndent();
+            irStream << tagPtr << " = getelementptr inbounds %struct." << targetName << ", %struct." << targetName << "* " << enumPtr << ", i32 0, i32 0\n";
+            emitIndent();
+            irStream << "store i32 0, i32* " << tagPtr << "\n";
+
+            lastResultReg = enumPtr;
+            lastResultType = targetName;
+            return;
+        }
+    }
+
+
     node->getTarget()->accept(this);
     std::string structPtrReg = lastResultReg;
     std::string structType = lastResultType;
@@ -550,6 +586,7 @@ void LLVMCodeGen::visit(MemberAccessASTNode* node) {
         lastResultType = fieldType;
     }
 }
+
 
 void LLVMCodeGen::visit(ArrayAccessASTNode* node) {
     node->getArray()->accept(this);
@@ -782,29 +819,40 @@ void LLVMCodeGen::visit(IfASTNode* node) {
 
         irStream << thenLabel << ":\n";
         currentBlockLabel = thenLabel;
+        blockHasTerminator = false;
         node->getThenBlock()->accept(this);
-        emitIndent();
-        irStream << "br label %" << mergeLabel << "\n";
+        if (!blockHasTerminator) {
+            emitIndent();
+            irStream << "br label %" << mergeLabel << "\n";
+        }
 
         irStream << elseLabel << ":\n";
         currentBlockLabel = elseLabel;
+        blockHasTerminator = false;
         node->getElseBlock()->accept(this);
-        emitIndent();
-        irStream << "br label %" << mergeLabel << "\n";
+        if (!blockHasTerminator) {
+            emitIndent();
+            irStream << "br label %" << mergeLabel << "\n";
+        }
     } else {
         emitIndent();
         irStream << "br i1 " << condI1 << ", label %" << thenLabel << ", label %" << mergeLabel << "\n";
 
         irStream << thenLabel << ":\n";
         currentBlockLabel = thenLabel;
+        blockHasTerminator = false;
         node->getThenBlock()->accept(this);
-        emitIndent();
-        irStream << "br label %" << mergeLabel << "\n";
+        if (!blockHasTerminator) {
+            emitIndent();
+            irStream << "br label %" << mergeLabel << "\n";
+        }
     }
 
     irStream << mergeLabel << ":\n";
     currentBlockLabel = mergeLabel;
+    blockHasTerminator = false;
 }
+
 
 void LLVMCodeGen::visit(WhileASTNode* node) {
     std::string condLabel = newLabel("while.cond");
@@ -1546,6 +1594,92 @@ void LLVMCodeGen::visit(MethodCallASTNode* node) {
     lastResultType = retType;
 }
 
+void LLVMCodeGen::visit(EnumDeclASTNode* node) {
+    // Enum represented as { i32 tag, i8* payload }
+    globalDefsStream << "%struct." << node->getName() << " = type { i32, i8* }\n";
+}
+
+void LLVMCodeGen::visit(EnumVariantExprASTNode* node) {
+    std::string mallocCall = newReg();
+    emitIndent();
+    irStream << mallocCall << " = call i8* @malloc(i64 16)\n";
+    std::string enumPtr = newReg();
+    emitIndent();
+    irStream << enumPtr << " = bitcast i8* " << mallocCall << " to %struct." << node->getEnumName() << "*\n";
+
+    // Store tag
+    int tagIndex = 0; // default tag index
+    std::string tagPtr = newReg();
+    emitIndent();
+    irStream << tagPtr << " = getelementptr inbounds %struct." << node->getEnumName() << ", %struct." << node->getEnumName() << "* " << enumPtr << ", i32 0, i32 0\n";
+    emitIndent();
+    irStream << "store i32 " << tagIndex << ", i32* " << tagPtr << "\n";
+
+    lastResultReg = enumPtr;
+    lastResultType = node->getEnumName();
+}
+
+void LLVMCodeGen::visit(MatchASTNode* node) {
+    if (node->getTarget()) {
+        node->getTarget()->accept(this);
+    }
+    std::string targetReg = lastResultReg;
+
+    std::string endLabel = newLabel("match.end");
+    std::string defaultLabel = newLabel("match.default");
+
+    std::vector<std::string> caseLabels;
+    for (size_t i = 0; i < node->getCases().size(); ++i) {
+        caseLabels.push_back(newLabel("match.case." + std::to_string(i)));
+    }
+
+    std::string targetType = lastResultType;
+
+    // Extract tag from target
+    std::string tagPtr = newReg();
+    emitIndent();
+    irStream << tagPtr << " = getelementptr inbounds %struct." << targetType << ", %struct." << targetType << "* " << targetReg << ", i32 0, i32 0\n";
+
+    std::string tagVal = newReg();
+    emitIndent();
+    irStream << tagVal << " = load i32, i32* " << tagPtr << "\n";
+
+    emitIndent();
+    irStream << "switch i32 " << tagVal << ", label %" << defaultLabel << " [\n";
+    for (size_t i = 0; i < node->getCases().size(); ++i) {
+        emitIndent();
+        irStream << "  i32 " << i << ", label %" << caseLabels[i] << "\n";
+    }
+    emitIndent();
+    irStream << "]\n";
+
+    for (size_t i = 0; i < node->getCases().size(); ++i) {
+        irStream << caseLabels[i] << ":\n";
+        currentBlockLabel = caseLabels[i];
+        blockHasTerminator = false;
+
+        const auto& c = node->getCases()[i];
+        if (c.body) {
+            c.body->accept(this);
+        }
+
+        if (!blockHasTerminator) {
+            emitIndent();
+            irStream << "br label %" << endLabel << "\n";
+        }
+    }
+
+    irStream << defaultLabel << ":\n";
+    currentBlockLabel = defaultLabel;
+    blockHasTerminator = false;
+    emitIndent();
+    irStream << "br label %" << endLabel << "\n";
+
+    irStream << endLabel << ":\n";
+    currentBlockLabel = endLabel;
+    blockHasTerminator = false;
+}
+
 void LLVMCodeGen::visit(ExpressionStmtASTNode* node) {
     if (node->getExpression()) {
         node->getExpression()->accept(this);
@@ -1553,3 +1687,6 @@ void LLVMCodeGen::visit(ExpressionStmtASTNode* node) {
 }
 
 } // namespace vit
+
+
+

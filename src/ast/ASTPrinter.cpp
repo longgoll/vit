@@ -338,6 +338,55 @@ void ASTPrinter::visit(LambdaASTNode* node) {
     }
 }
 
+void ASTPrinter::visit(EnumDeclASTNode* node) {
+    printIndent();
+    out << "[EnumDeclASTNode] enum " << node->getName() << " {\n";
+    indentLevel++;
+    for (const auto& var : node->getVariants()) {
+        printIndent();
+        out << var.name;
+        if (!var.payloadTypes.empty()) {
+            out << "(";
+            for (size_t i = 0; i < var.payloadTypes.size(); ++i) {
+                out << var.payloadTypes[i];
+                if (i + 1 < var.payloadTypes.size()) out << ", ";
+            }
+            out << ")";
+        }
+        out << "\n";
+    }
+    indentLevel--;
+}
+
+void ASTPrinter::visit(EnumVariantExprASTNode* node) {
+    printIndent();
+    out << "[EnumVariantExprASTNode] " << node->getEnumName() << "." << node->getVariantName() << "\n";
+    indentLevel++;
+    for (const auto& arg : node->getArgs()) {
+        arg->accept(this);
+    }
+    indentLevel--;
+}
+
+void ASTPrinter::visit(MatchASTNode* node) {
+    printIndent();
+    out << "[MatchASTNode]\n";
+    indentLevel++;
+    printIndent();
+    out << "Target:\n";
+    indentLevel++;
+    if (node->getTarget()) node->getTarget()->accept(this);
+    indentLevel--;
+    for (const auto& c : node->getCases()) {
+        printIndent();
+        out << "Case " << c.variantPattern << ":\n";
+        indentLevel++;
+        if (c.body) c.body->accept(this);
+        indentLevel--;
+    }
+    indentLevel--;
+}
+
 void ASTPrinter::visit(ExpressionStmtASTNode* node) {
     printIndent();
     out << "[ExpressionStmtASTNode]\n";
@@ -349,3 +398,4 @@ void ASTPrinter::visit(ExpressionStmtASTNode* node) {
 }
 
 } // namespace vit
+

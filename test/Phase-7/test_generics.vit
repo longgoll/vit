@@ -1,0 +1,15 @@
+// Test Phase 7: Generics (Parametric Polymorphism via Monomorphization)
+
+function identity<T>(item: T): T {
+    return item;
+}
+
+function main(): number {
+    let num = identity<number>(42.0);
+    print(num);
+
+    let str = identity<string>("VIT Generics Works!");
+    print(str);
+
+    return 0;
+}
