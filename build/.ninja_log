@@ -1,0 +1,19 @@
+# ninja log v7
+18	5031	8071864600063728	CMakeFiles/vit.dir/src/lexer/Lexer.cpp.obj	a44d25349e2161d1
+7	5849	8071864599974097	CMakeFiles/vit.dir/src/ast/ASTPrinter.cpp.obj	230cdd501298d5a2
+46	7774	8071864600375733	CMakeFiles/vit.dir/src/codegen/LLVMCodeGen.cpp.obj	52114fd5ee775353
+31	8579	8071864600234129	CMakeFiles/vit.dir/src/parser/Parser.cpp.obj	e88f62699b743707
+68	15833	8071864600616104	CMakeFiles/vit.dir/src/codegen/NativeCompiler.cpp.obj	5a08875236a2c5c2
+100	16615	8071864600930993	CMakeFiles/vit.dir/src/main.cpp.obj	b8205a619626b041
+16615	17190	8071864766091387	vit.exe	2cb876b6a7a57b13
+50	635	8071865208170696	build.ninja	c6026441ad8dac17
+50	635	8071865208170696	D:/HoangLong/Dev/vit/build/cmake_install.cmake	c6026441ad8dac17
+46	918	8071865209405985	vit.exe	22e80535aedd15e3
+46	6598	8071865872559058	CMakeFiles/vit.dir/src/codegen/NativeCompiler.cpp.obj	5a08875236a2c5c2
+6599	7928	8071865938081010	vit.exe	22e80535aedd15e3
+33	3056	8071869528863882	CMakeFiles/vit.dir/src/codegen/NativeCompiler.cpp.obj	5a08875236a2c5c2
+41	3461	8071869529000489	CMakeFiles/vit.dir/src/main.cpp.obj	b8205a619626b041
+3462	3951	8071869563209808	vit.exe	22e80535aedd15e3
+32	3416	8071869806820312	CMakeFiles/vit.dir/src/codegen/NativeCompiler.cpp.obj	5a08875236a2c5c2
+41	3921	8071869806897514	CMakeFiles/vit.dir/src/main.cpp.obj	b8205a619626b041
+3921	4805	8071869845716412	vit.exe	22e80535aedd15e3

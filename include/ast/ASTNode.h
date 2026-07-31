@@ -1,0 +1,50 @@
+#ifndef VIT_AST_NODE_H
+#define VIT_AST_NODE_H
+
+#include <memory>
+#include <string>
+#include <vector>
+
+namespace vit {
+
+// Forward declaration of Visitor
+class ASTVisitor;
+
+enum class NodeType {
+    Program,
+    FunctionDecl,
+    Block,
+    VarDecl,
+    Assignment,
+    If,
+    Return,
+    Print,
+    NumberLiteral,
+    VariableExpr,
+    BinaryOp,
+    CallExpr
+};
+
+// Base class for all AST nodes
+class ASTNode {
+public:
+    virtual ~ASTNode() = default;
+    virtual NodeType getType() const = 0;
+    virtual void accept(ASTVisitor* visitor) = 0;
+};
+
+// Base class for Expression nodes (produces a value)
+class ExpressionNode : public ASTNode {
+public:
+    virtual ~ExpressionNode() = default;
+};
+
+// Base class for Statement nodes (performs an action)
+class StatementNode : public ASTNode {
+public:
+    virtual ~StatementNode() = default;
+};
+
+} // namespace vit
+
+#endif // VIT_AST_NODE_H

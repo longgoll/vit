@@ -1,0 +1,19 @@
+// Sample JS-Like source code for VIT Compiler
+
+function multiply(a: number, b: number): number {
+    return a * b;
+}
+
+function main(): number {
+    let price = 50;
+    let quantity = 3;
+    let total = multiply(price, quantity);
+    
+    if (total > 100) {
+        print(total);
+    } else {
+        print(0);
+    }
+    
+    return 0;
+}

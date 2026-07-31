@@ -1,0 +1,78 @@
+#ifndef VIT_EXPRESSIONS_H
+#define VIT_EXPRESSIONS_H
+
+#include "ASTNode.h"
+#include "ASTVisitor.h"
+
+namespace vit {
+
+// Node representing a numeric literal (e.g. 10, 3.14)
+class NumberLiteralASTNode : public ExpressionNode {
+private:
+    double value;
+
+public:
+    explicit NumberLiteralASTNode(double val) : value(val) {}
+
+    double getValue() const { return value; }
+
+    NodeType getType() const override { return NodeType::NumberLiteral; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing a variable expression (e.g. x, y)
+class VariableExprASTNode : public ExpressionNode {
+private:
+    std::string name;
+
+public:
+    explicit VariableExprASTNode(std::string varName) : name(std::move(varName)) {}
+
+    const std::string& getName() const { return name; }
+
+    NodeType getType() const override { return NodeType::VariableExpr; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing a binary operation (e.g. a + b, x > 0)
+class BinaryOpASTNode : public ExpressionNode {
+private:
+    std::string op; // "+", "-", "*", "/", "<", ">", "==", "!="
+    std::unique_ptr<ExpressionNode> left;
+    std::unique_ptr<ExpressionNode> right;
+
+public:
+    BinaryOpASTNode(std::string opName,
+                    std::unique_ptr<ExpressionNode> lhs,
+                    std::unique_ptr<ExpressionNode> rhs)
+        : op(std::move(opName)), left(std::move(lhs)), right(std::move(rhs)) {}
+
+    const std::string& getOp() const { return op; }
+    ExpressionNode* getLeft() const { return left.get(); }
+    ExpressionNode* getRight() const { return right.get(); }
+
+    NodeType getType() const override { return NodeType::BinaryOp; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing a function call expression (e.g. add(x, y))
+class CallExprASTNode : public ExpressionNode {
+private:
+    std::string callee;
+    std::vector<std::unique_ptr<ExpressionNode>> args;
+
+public:
+    CallExprASTNode(std::string functionName,
+                    std::vector<std::unique_ptr<ExpressionNode>> arguments)
+        : callee(std::move(functionName)), args(std::move(arguments)) {}
+
+    const std::string& getCallee() const { return callee; }
+    const std::vector<std::unique_ptr<ExpressionNode>>& getArgs() const { return args; }
+
+    NodeType getType() const override { return NodeType::CallExpr; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+} // namespace vit
+
+#endif // VIT_EXPRESSIONS_H

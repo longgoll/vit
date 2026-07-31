@@ -1,0 +1,17 @@
+function add(a: number, b: number): number {
+    return a + b;
+}
+
+function main(): number {
+    let x = 15;
+    let y = 35;
+    let result = add(x, y);
+    
+    if (result > 30) {
+        print(result); // In ra 50
+    } else {
+        print(0);
+    }
+    
+    return 0;
+}
