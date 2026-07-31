@@ -1,17 +1,17 @@
-# VIT Compiler - Complete Architecture & Phase 1-5 Summary (AI Context Document)
+# VIT Compiler - Complete Architecture & Phase 1-7 Summary (AI Context Document)
 
-> **Purpose**: Tài liệu tóm tắt toàn bộ kiến trúc, cú pháp, tính năng và lịch sử 5 Phase đã hoàn thành (v0.5.0) của trình biên dịch **VIT Compiler**. File này được tối ưu hóa cho AI Coding Assistant đọc nhanh, giúp nắm bắt 100% ngữ cảnh dự án với lượng token tối thiểu.
+> **Purpose**: Tài liệu tóm tắt toàn bộ kiến trúc, cú pháp, tính năng và lịch sử 7 Phase đã hoàn thành (v0.7.0) của trình biên dịch **VIT Compiler**. File này được tối ưu hóa cho AI Coding Assistant đọc nhanh, giúp nắm bắt 100% ngữ cảnh dự án với lượng token tối thiểu.
 
 ---
 
 ## 1. Quick Facts & Tech Stack
-* **Project**: VIT Compiler (`v0.5.0`) - Ngôn ngữ biên dịch Native có cú pháp giống JS/TS.
-* **Implementation**: C++20, LLVM C++ API (IRBuilder, LLVM IR CodeGen), Clang Native Linker.
-* **Compilation Pipeline**: `Source (.vit/.jslik)` ➔ `Lexer` ➔ `Parser (Recursive Descent + Precedence Climbing)` ➔ `SemanticAnalyzer (Type Check)` ➔ `LLVMCodeGen (IR + ARC Pass)` ➔ `NativeCompiler (Clang -O1/-O2/-O3)` ➔ `Executable (.exe)`.
+* **Project**: VIT Compiler (`v0.7.0`) - Ngôn ngữ biên dịch Native có cú pháp giống JS/TS.
+* **Implementation**: C++20, LLVM C++ API (IRBuilder, LLVM IR CodeGen), Monomorphizer Pass, Clang Native Linker.
+* **Compilation Pipeline**: `Source (.vit)` ➔ `Lexer` ➔ `Parser` ➔ `Monomorphizer (Generics Pass)` ➔ `SemanticAnalyzer (Type Check)` ➔ `LLVMCodeGen (IR + ARC Pass)` ➔ `NativeCompiler (Clang -O1/-O2/-O3)` ➔ `Executable (.exe)`.
 
 ---
 
-## 2. Summary Timeline: Phase 1 -> Phase 5
+## 2. Summary Timeline: Phase 1 -> Phase 7
 
 | Phase | Milestone Name | Features & Scope | Key Files Updated |
 |---|---|---|---|
@@ -20,46 +20,56 @@
 | **Phase 3** | **Structs, Arrays & FFI** | - `struct` definition & field access (`p.x`).<br>- Heap Array allocation (`let arr = [10, 20, 30]`) & indexing (`arr[i]`).<br>- Type Inference: `let x = 10` (no explicit type annotation needed).<br>- C FFI: `extern function sqrt(x: number): number;`. | [Statements.h](file:///d:/HoangLong/Dev/vit/include/ast/Statements.h), [Expressions.h](file:///d:/HoangLong/Dev/vit/include/ast/Expressions.h), [SemanticAnalyzer.cpp](file:///d:/HoangLong/Dev/vit/src/semantics/SemanticAnalyzer.cpp) |
 | **Phase 4** | **ARC, Modules & Tooling** | - ARC Scope Cleanup Pass: Auto insertion of `@free()` for heap arrays/structs at scope exit.<br>- Module System: `import { a, b } from "std/math";` & `import "mod";`. Recursive resolver protection.<br>- Standard Library: `std/math.vit` (`sqrt`, `cos`, `sin`, `pow`, `abs`...).<br>- Rich Rust-like Diagnostics: Colored ANSI terminal error reporting with `^` caret snippet pointing.<br>- Native Compiler Optimizations: `-O1`, `-O2`, `-O3` passed to Clang backend. | [DiagnosticPrinter.cpp](file:///d:/HoangLong/Dev/vit/src/diagnostics/DiagnosticPrinter.cpp), [LLVMCodeGen.cpp](file:///d:/HoangLong/Dev/vit/src/codegen/LLVMCodeGen.cpp), [main.cpp](file:///d:/HoangLong/Dev/vit/src/main.cpp), [std/math.vit](file:///d:/HoangLong/Dev/vit/std/math.vit) |
 | **Phase 5** | **Struct Methods & String Operations** | - Struct Methods (`this`): Declare methods inside `struct`, call `obj.method()`.<br>- String Ops: Concatenation `+` (with ARC Heap cleanup), equality `==`/`!=` (`strcmp`), `.length`.<br>- Array `.length`: Header prefix length metadata.<br>- Stdlib: `std/string.vit` C interop.<br>- Main return type `i32 0` exit code fix. | [Parser.cpp](file:///d:/HoangLong/Dev/vit/src/parser/Parser.cpp), [SemanticAnalyzer.cpp](file:///d:/HoangLong/Dev/vit/src/semantics/SemanticAnalyzer.cpp), [LLVMCodeGen.cpp](file:///d:/HoangLong/Dev/vit/src/codegen/LLVMCodeGen.cpp), [std/string.vit](file:///d:/HoangLong/Dev/vit/std/string.vit) |
+| **Phase 6** | **Functional Programming & Lambdas** | - First-class functions, Lambdas / Arrow Functions (`(x: number) => x * 2`).<br>- Function types (`(a: number) => number`).<br>- Higher-order array methods: `.map()`, `.filter()`, `.forEach()`.<br>- Stdlib: `std/array.vit`, `std/sys.vit`. | [Parser.cpp](file:///d:/HoangLong/Dev/vit/src/parser/Parser.cpp), [SemanticAnalyzer.cpp](file:///d:/HoangLong/Dev/vit/src/semantics/SemanticAnalyzer.cpp), [LLVMCodeGen.cpp](file:///d:/HoangLong/Dev/vit/src/codegen/LLVMCodeGen.cpp), [std/array.vit](file:///d:/HoangLong/Dev/vit/std/array.vit) |
+| **Phase 7** | **Generics, Enums & System FFI** | - Generics (`struct Stack<T>`, `fn identity<T>`) via Monomorphizer.<br>- Enums / Tagged Unions (`enum Option<T> { Some(val: T), None }`).<br>- Pattern Matching (`match (expr) { Option.Some(v) => ... }`).<br>- File System FFI & Standard Console (`std/fs.vit`, `std/io.vit`). | [Monomorphizer.cpp](file:///d:/HoangLong/Dev/vit/src/semantics/Monomorphizer.cpp), [Parser.cpp](file:///d:/HoangLong/Dev/vit/src/parser/Parser.cpp), [LLVMCodeGen.cpp](file:///d:/HoangLong/Dev/vit/src/codegen/LLVMCodeGen.cpp), [std/fs.vit](file:///d:/HoangLong/Dev/vit/std/fs.vit) |
 
 ---
 
-## 3. Language Features & Code Syntax Example (v0.5.0)
+## 3. Language Features & Code Syntax Example (v0.7.0)
 
 ```javascript
-// 1. Module System Imports
+import { readFile, writeFile } from "std/fs";
 import { sqrt } from "std/math";
 
-// 2. Struct Definition with Methods & 'this'
+// 1. Generic Struct & Enums
+struct Stack<T> {
+    items: T[],
+    count: number
+}
+
+enum Option<T> {
+    Some(val: T),
+    None
+}
+
+// 2. Struct with Methods & 'this'
 struct Point {
     x: number,
     y: number,
     function distance(): number {
         return sqrt(this.x * this.x + this.y * this.y);
-    },
-    function scale(factor: number): void {
-        this.x = this.x * factor;
-        this.y = this.y * factor;
     }
 }
 
 function main(): number {
-    // 3. Struct Instantiation & Method Call
-    let p: Point;
-    p.x = 3.0;
-    p.y = 4.0;
-    print(p.distance()); // Output: 5.000000
+    // 3. Lambda & Array Methods (.map)
+    let numbers = [1.0, 2.0, 3.0, 4.0];
+    let doubled = numbers.map((x: number): number => x * 2.0);
 
-    p.scale(2.0);
-    print(p.x);          // Output: 6.000000
+    // 4. Generics & Pattern Matching
+    let opt = Option.Some(42.0);
+    match (opt) {
+        Option.Some(val) => {
+            print(val);
+        },
+        Option.None => {
+            print("No value");
+        }
+    }
 
-    // 4. String Operations & Concatenation
-    let name = "VIT " + "Language";
-    print(name);         // Output: VIT Language
-    print(name.length);  // Output: 12.000000
-
-    // 5. Array Property (.length)
-    let numbers = [10, 20, 30, 40, 50];
-    print(numbers.length); // Output: 5.000000
+    // 5. System File I/O
+    let content = readFile("input.txt");
+    print(content);
 
     return 0;
 }
@@ -75,77 +85,47 @@ vit/
 │   ├── ast/           # AST Nodes (ASTNode.h, Expressions.h, Statements.h, Functions.h, ASTVisitor.h)
 │   ├── lexer/         # Token.h (TokenType), Lexer.h
 │   ├── parser/        # Parser.h (Recursive Descent + Precedence Climbing)
-│   ├── semantics/     # SemanticAnalyzer.h (Symbol tables & type checking)
+│   ├── semantics/     # SemanticAnalyzer.h, Monomorphizer.h (Generics monomorphization pass)
 │   ├── diagnostics/   # DiagnosticPrinter.h (Rust-like colored diagnostic output)
 │   └── codegen/       # LLVMCodeGen.h (LLVM IR Generation & ARC Pass), NativeCompiler.h (Clang wrapper)
 ├── src/               # Implementation files (.cpp) matching include/
 │   └── main.cpp       # CLI Command Handler (run, build, flags: -O1/-O2/-O3, --emit-ast, --emit-llvm)
 ├── std/
-│   ├── math.vit       # Standard Library module containing extern C math declarations
-│   └── string.vit     # Standard Library module for string operations
-├── test/              # Test suites organized by Phase
-│   ├── Phase-1/       # Basic expressions & functions
-│   ├── Phase-2/       # Control flows & boolean/string types
-│   ├── Phase-3/       # Structs, arrays, FFI, type inference
-│   ├── Phase-4/       # Imports, ARC cleanup, Rust-like errors, -O2 optimization
-│   └── Phase-5/       # Struct methods, this, string +, string/array .length
-└── docs/              # Detailed specifications and logs
+│   ├── math.vit       # Standard Library module for math
+│   ├── string.vit     # Standard Library module for string ops
+│   ├── array.vit      # Dynamic array operations
+│   ├── sys.vit        # System clock and exit helpers
+│   ├── fs.vit         # File System I/O (readFile, writeFile)
+│   └── io.vit         # Console I/O
+├── test/              # Test suites organized by Phase (Phase-1 to Phase-7)
+└── docs/              # Specifications and work logs
     ├── AI_CONTEXT_SUMMARY.md  # [THIS FILE] Compact context summary for AI
-    ├── features/      # Detailed feature specs (current_features.md, phase2/3/4/5_features.md)
-    └── history/       # Phase work logs (work_log.md, phase2/3/4/5_work_log.md)
+    ├── features/      # Feature specs (phase6_features.md, phase7_features.md, phase8-12_features.md)
+    └── history/       # Phase work logs (phase6_work_log.md, phase7_work_log.md)
 ```
 
 ---
 
-## 5. Key Internal System Mechanics
-
-1. **Memory Management (ARC Scope Cleanup)**:
-   - Module `LLVMCodeGen` maintains a stack of heap-allocated pointers (`scopeHeapAllocations`).
-   - When exiting any block (`BlockASTNode`), `LLVMCodeGen` generates `@free(i8* %ptr)` calls for all heap variables declared in that scope.
-2. **Type Inference**:
-   - `SemanticAnalyzer` & `LLVMCodeGen` evaluate `initializer` expressions on `VarDeclASTNode` when no explicit type annotation `: Type` is provided.
-3. **Module Import Resolver**:
-   - `resolveImports()` in `src/main.cpp` recursively resolves relative imports (`std/math`, `./mod.vit`), prevents duplicate/circular loading, and merges AST declarations into the main `ProgramASTNode`.
-4. **Rich Diagnostics**:
-   - `DiagnosticPrinter` catches `ParseError` or semantic exceptions, extracts source line code from file, and prints colored snippet pointers `^`.
-
----
-
-## 6. How to Build & Run Compiler
-
-```cmd
-# 1. Build Compiler Binary (vit.exe)
-cmake -B build -S .
-cmake --build build --config Debug
-
-# 2. Run source script directly
-vit run test/Phase-4/test_import.vit
-
-# 3. Build optimized Native Binary (.exe)
-vit build test/Phase-4/test_import.vit -O2 -o app.exe
-
-# 4. Debug LLVM IR / AST Output
-vit run script.vit --emit-ast --emit-llvm
-```
-
----
-
-## 7. Future Roadmap (Phase 6 & Phase 7)
+## 5. Future Roadmap (Phase 8 -> Phase 12 / v1.0.0)
 
 AI Assistants reading this summary should refer to the following feature spec files for implementation:
 
-### **Phase 6: First-Class Functions, Lambdas & Array Methods** (`v0.6.0`)
-* **Spec File**: [phase6_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase6_features.md)
-* **Scope**:
-  1. Arrow / Lambda functions: `(x: number): number => x * 2`.
-  2. Function Types: `(a: number) => number`.
-  3. Built-in Higher-Order Array Methods: `arr.map(fn)`, `arr.filter(fn)`, `arr.forEach(fn)`.
-  4. Standard Library `std/array.vit` & `std/sys.vit` (`clock()`, `exit()`).
+### **Phase 8: Advanced Error Handling & Safety** (`v0.8.0`)
+* **Spec File**: [phase8_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase8_features.md)
+* **Scope**: `Result<T, E>`, `Option<T>`, `?` try operator, Strict Null Safety (`T?`, `?.`, `??`), Array bounds checks.
 
-### **Phase 7: Generics, Enums, Pattern Matching & System FFI** (`v0.7.0`)
-* **Spec File**: [phase7_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase7_features.md)
-* **Scope**:
-  1. Generics / Parametric Polymorphism: `struct Stack<T>`, `function identity<T>(item: T): T` via AST Monomorphization Pass.
-  2. Enums / Tagged Unions: `enum Option<T> { Some(val: T), None }`.
-  3. Pattern Matching: `match (opt) { Option.Some(v) => ..., Option.None => ... }`.
-  4. File I/O Standard Library: `std/fs.vit` (`readFile`, `writeFile`).
+### **Phase 9: Built-in Collections & Advanced Standard Library** (`v0.9.0`)
+* **Spec File**: [phase9_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase9_features.md)
+* **Scope**: `HashMap<K, V>`, `Set<T>`, `Queue<T>`, `std/json` parser/stringify, `std/env` CLI args.
+
+### **Phase 10: Concurrency & Async Engine** (`v0.10.0`)
+* **Spec File**: [phase10_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase10_features.md)
+* **Scope**: `async`/`await` syntax, Coroutine State Machine LLVM IR transformation, `std/thread`, `std/channel`, Event Loop.
+
+### **Phase 11: Developer Experience & Ecosystem** (`v0.11.0`)
+* **Spec File**: [phase11_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase11_features.md)
+* **Scope**: Language Server Protocol (`vit-lsp`), Package Manager (`vit pm`), Interactive LLVM JIT REPL (`vit repl`), Formatter & Linter (`vit fmt`, `vit lint`).
+
+### **Phase 12: Cross-Compilation, WASM & ARC Optimization** (`v1.0.0`)
+* **Spec File**: [phase12_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase12_features.md)
+* **Scope**: Target triples (`--target x86_64-linux`, `aarch64-darwin`, `wasm32-wasi`), WebAssembly backend, Custom ARC Escape Analysis Pass.
