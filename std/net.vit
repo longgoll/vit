@@ -30,6 +30,9 @@ struct TcpListener {
 
     function accept(): TcpStream {
         let clientFd = vit_net_socket_accept(this.fd);
+        while (clientFd < 0) {
+            clientFd = vit_net_socket_accept(this.fd);
+        }
         let stream: TcpStream;
         stream.fd = clientFd;
         return stream;

@@ -60,20 +60,26 @@ void vit_net_cleanup(void) {
     g_net_initialized = 0;
 }
 
-int vit_net_socket_create(void) {
+double vit_net_socket_create(void) {
     vit_net_init();
     SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (s == INVALID_SOCKET) {
-        return -1;
+#ifdef _WIN32
+        fprintf(stderr, "[VIT Net Error] socket create failed: %d\n", WSAGetLastError());
+#endif
+        return -1.0;
     }
     // Allow address reuse
     int opt = 1;
     setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
-    return (int)s;
+    return (double)s;
 }
 
-int vit_net_socket_bind(int fd, const char* host, int port) {
+double vit_net_socket_bind(double fd_dbl, const char* host, double port_dbl) {
     vit_net_init();
+    int fd = (int)fd_dbl;
+    int port = (int)port_dbl;
+
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -82,69 +88,87 @@ int vit_net_socket_bind(int fd, const char* host, int port) {
     if (host == NULL || strlen(host) == 0 || strcmp(host, "0.0.0.0") == 0) {
         addr.sin_addr.s_addr = INADDR_ANY;
     } else {
-        inet_pton(AF_INET, host, &addr.sin_addr);
+        addr.sin_addr.s_addr = inet_addr(host);
     }
 
     int res = bind((SOCKET)fd, (struct sockaddr*)&addr, sizeof(addr));
-    return (res == SOCKET_ERROR) ? -1 : 0;
+    if (res == SOCKET_ERROR) {
+#ifdef _WIN32
+        fprintf(stderr, "[VIT Net Error] bind to %s:%d failed: %d\n", host ? host : "0.0.0.0", port, WSAGetLastError());
+#endif
+        return -1.0;
+    }
+    return 0.0;
 }
 
-int vit_net_socket_listen(int fd, int backlog) {
+double vit_net_socket_listen(double fd_dbl, double backlog_dbl) {
+    int fd = (int)fd_dbl;
+    int backlog = (int)backlog_dbl;
     if (backlog <= 0) backlog = 128;
     int res = listen((SOCKET)fd, backlog);
-    return (res == SOCKET_ERROR) ? -1 : 0;
+    return (res == SOCKET_ERROR) ? -1.0 : 0.0;
 }
 
-int vit_net_socket_accept(int fd) {
+double vit_net_socket_accept(double fd_dbl) {
+    int fd = (int)fd_dbl;
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
     SOCKET client_fd = accept((SOCKET)fd, (struct sockaddr*)&client_addr, &client_len);
     if (client_fd == INVALID_SOCKET) {
-        return -1;
+        return -1.0;
     }
-    return (int)client_fd;
+    return (double)client_fd;
 }
 
-int vit_net_socket_connect(int fd, const char* host, int port) {
+double vit_net_socket_connect(double fd_dbl, const char* host, double port_dbl) {
     vit_net_init();
+    int fd = (int)fd_dbl;
+    int port = (int)port_dbl;
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons((unsigned short)port);
-    inet_pton(AF_INET, host, &addr.sin_addr);
+    addr.sin_addr.s_addr = inet_addr(host);
 
     int res = connect((SOCKET)fd, (struct sockaddr*)&addr, sizeof(addr));
-    return (res == SOCKET_ERROR) ? -1 : 0;
+    return (res == SOCKET_ERROR) ? -1.0 : 0.0;
 }
 
-int vit_net_socket_send(int fd, const char* data, int len) {
-    if (!data) return 0;
+double vit_net_socket_send(double fd_dbl, const char* data, double len_dbl) {
+    int fd = (int)fd_dbl;
+    int len = (int)len_dbl;
+    if (!data) return 0.0;
     if (len <= 0) len = (int)strlen(data);
     int bytes_sent = send((SOCKET)fd, data, len, 0);
-    return (bytes_sent == SOCKET_ERROR) ? -1 : bytes_sent;
+    return (bytes_sent == SOCKET_ERROR) ? -1.0 : (double)bytes_sent;
 }
 
-int vit_net_socket_recv(int fd, char* buf, int max_len) {
-    if (!buf || max_len <= 0) return 0;
+double vit_net_socket_recv(double fd_dbl, char* buf, double max_len_dbl) {
+    int fd = (int)fd_dbl;
+    int max_len = (int)max_len_dbl;
+    if (!buf || max_len <= 0) return 0.0;
     int bytes_read = recv((SOCKET)fd, buf, max_len, 0);
-    return (bytes_read == SOCKET_ERROR) ? -1 : bytes_read;
+    return (bytes_read == SOCKET_ERROR) ? -1.0 : (double)bytes_read;
 }
 
-void vit_net_socket_close(int fd) {
+void vit_net_socket_close(double fd_dbl) {
+    int fd = (int)fd_dbl;
     if (fd >= 0) {
         closesocket((SOCKET)fd);
     }
 }
 
-char* vit_net_recv_string(int fd, int max_len) {
+char* vit_net_recv_string(double fd_dbl, double max_len_dbl) {
+    int fd = (int)fd_dbl;
+    int max_len = (int)max_len_dbl;
     if (max_len <= 0) max_len = 4096;
     char* buf = (char*)malloc(max_len + 1);
     if (!buf) return NULL;
-    int bytes_read = vit_net_socket_recv(fd, buf, max_len);
+    int bytes_read = recv((SOCKET)fd, buf, max_len, 0);
     if (bytes_read <= 0) {
         buf[0] = '\0';
-        return buf;
+    } else {
+        buf[bytes_read] = '\0';
     }
-    buf[bytes_read] = '\0';
     return buf;
 }

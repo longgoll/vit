@@ -210,7 +210,7 @@ bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const 
             for (const auto& libPath : minGwLibPaths) {
                 fallbackCmd += " -L\"" + libPath + "\"";
             }
-            fallbackCmd += " \"" + winIrPath + "\" " + rtPath + sysLibs + "-o \"" + winExePath + "\"";
+            fallbackCmd += " " + incFlags + " \"" + winIrPath + "\" " + rtPath + sysLibs + "-o \"" + winExePath + "\"";
             std::string fallbackFullCmd = "cmd.exe /S /C \"" + fallbackCmd + "\"";
             exitCode = std::system(fallbackFullCmd.c_str());
         } else if (targetTriple.find("wasm32") != std::string::npos) {
