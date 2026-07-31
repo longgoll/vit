@@ -31,6 +31,27 @@
 * **Báo Lỗi Dạng Rust-Like (Rich Error Diagnostics)**: In dòng lỗi màu sắc ANSI, trích đoạn code thực tế và con trỏ `^` chỉ vị trí lỗi.
 * **Cờ Tối Ưu Hóa Native (`-O1`, `-O2`, `-O3`)**: Kích hoạt bộ tối ưu hóa LLVM/Clang cho file `.exe`.
 
+### 🔹 Phase 5 — Struct Methods, String Operations & Length Metadata
+* **Phương Thức Struct (`this`)**: Định nghĩa method trong `struct`, gọi `obj.method()`.
+* **Xử Lý Chuỗi (`string`)**: Phép cộng chuỗi `+` (với ARC cleanup), so sánh `==`/`!=`, truy cập độ dài `.length`.
+* **Array Length Metadata**: Header prefixmetadata lưu độ dài mảng cho `.length`.
+
+### 🔹 Phase 6 — Functional Programming & Lambdas
+* **Hàm Hạng Nhất (First-class functions) & Lambdas**: Hàm ẩn danh / Arrow Functions `(x: number) => x * 2.0`.
+* **Phương Thức Mảng Hạng Cao**: Tích hợp sẵn `.map()`, `.filter()`, `.forEach()`.
+
+### 🔹 Phase 7 — Generics, Enums, Pattern Matching & System FFI
+* **Generics (Monomorphization)**: Định nghĩa `struct Stack<T>`, `function identity<T>()`.
+* **Enums / Tagged Unions**: Định nghĩa kiểu liệt kê `enum Option<T> { Some(T), None }`.
+* **Pattern Matching (`match`)**: Cấu trúc rẽ nhánh khớp mẫu `match (expr) { Option.Some(v) => ... }`.
+* **System File I/O FFI**: Thư viện `std/fs.vit` (`readFile`, `writeFile`), `std/io.vit`.
+
+### 🔹 Phase 8 — Advanced Error Handling & Safety (v0.8.0)
+* **Try Operator (`?`)**: Unwrapping ngắn gọn cho `Result<T, E>` / `Option<T>` với cơ chế early-return khi gặp lỗi.
+* **Strict Null Safety**: Kiểu dữ liệu Nullable (`T?`), Optional Chaining (`obj?.prop`), Nullish Coalescing (`a ?? b`), và giá trị `null`.
+* **Runtime Bounds Checking**: Tự động so sánh chỉ số mảng và gọi handler `@__vit_panic("Index out of bounds")` khi truy cập vượt giới hạn.
+* **Panic System & Assertions**: Hàm built-in `panic(msg)` và `assert(condition, msg)`.
+
 ---
 
 ## 🛠 Cấu Trúc Dự Án (Project Structure)
@@ -39,15 +60,14 @@
 vit/
 ├── CMakeLists.txt         # Cấu hình biên dịch CMake (C++20)
 ├── README.md              # Tài liệu hướng dẫn dự án
-├── std/                   # Thư viện chuẩn VIT
-│   └── math.vit
+├── std/                   # Thư viện chuẩn VIT (math.vit, string.vit, array.vit, sys.vit, fs.vit, io.vit)
 ├── include/               # Header files (.h)
 │   ├── ast/               # Cấu trúc Cây cú pháp trừu tượng (AST)
 │   ├── diagnostics/       # Bộ in báo lỗi Rust-like rich diagnostics
 │   ├── lexer/             # Bộ phân tích từ vựng (Lexer)
 │   ├── parser/            # Bộ phân tích cú pháp (Parser)
-│   ├── semantics/         # Bộ phân tích ngữ nghĩa (Semantic Analyzer)
-│   └── codegen/           # Bộ sinh mã LLVM IR & Native Compiler
+│   ├── semantics/         # Semantic Analyzer & Monomorphizer Pass (Generics)
+│   └── codegen/           # Bộ sinh mã LLVM IR & Native Compiler Wrapper
 ├── src/                   # Source code C++ (.cpp)
 │   ├── ast/
 │   ├── diagnostics/
@@ -57,15 +77,10 @@ vit/
 │   ├── codegen/
 │   └── main.cpp           # Điểm vào chính của VIT Compiler CLI
 ├── docs/                  # Tài liệu chi tiết các Phase và Work Logs
-│   ├── AI_CONTEXT_SUMMARY.md # Context tóm tắt Phase 1-4 dành cho AI Code
-│   ├── features/          # Đặc tả các tính năng
-│   └── history/           # Lịch sử phát triển dự án
-├── test/                  # Các file mã nguồn test (.vit) theo từng Phase
-│   ├── Phase-1/
-│   ├── Phase-2/
-│   ├── Phase-3/
-│   └── Phase-4/
-└── scripts/               # Script tiện ích & cấu hình môi trường
+│   ├── AI_CONTEXT_SUMMARY.md # Context tóm tắt Phase 1-8 dành cho AI Code Assistant
+│   ├── features/          # Đặc tả tính năng từ Phase 1 tới Phase 13
+│   └── history/           # Lịch sử phát triển & Work logs (Phase 1-8)
+└── test/                  # Các file test (.vit) phân theo từng Phase (Phase-1 -> Phase-8)
 ```
 
 ---
@@ -86,7 +101,7 @@ vit/
 cmake -B build -S .
 
 # Biên dịch chương trình
-cmake --build build --config Debug
+cmake --build build --config Release
 ```
 
 ---
@@ -94,14 +109,14 @@ cmake --build build --config Debug
 ### 2️⃣ Chạy Thử Chương Trình VIT (`.vit`)
 
 ```bash
-# 1. Chạy file ví dụ Phase 4 (Module Import & Stdlib)
-vit run test/Phase-4/test_import.vit
+# 1. Chạy file ví dụ Phase 8 (Try Operator & Null Safety)
+vit run test/Phase-8/test_null_safety.vit
 
 # 2. Biên dịch Native tối ưu hóa với -O2
-vit build test/Phase-4/test_import.vit -O2 -o math_test.exe
+vit build test/Phase-8/test_try_operator.vit -O2 -o try_test.exe
 
-# 3. Xem mã LLVM IR với tự động chèn free() của ARC
-vit run test/Phase-4/test_arc.vit --emit-llvm
+# 3. Xem mã LLVM IR với bounds check & ARC cleanup
+vit run test/Phase-8/test_bounds_check.vit --emit-llvm
 ```
 
 ---
@@ -109,24 +124,40 @@ vit run test/Phase-4/test_arc.vit --emit-llvm
 ## 💡 Ví Dụ Mã Nguồn VIT (`.vit`)
 
 ```javascript
-// Module Import & Standard Library
-import { sqrt, pow } from "std/math";
+import { readFile } from "std/fs";
 
-struct Point {
-    x: number,
-    y: number
+struct User {
+    id: number,
+    name: string,
+    email: string? // Nullable type
+}
+
+function parseUser(raw: string): Option<User> {
+    if (raw.length == 0) {
+        return Option.None;
+    }
+    let u: User;
+    u.id = 1.0;
+    u.name = "Hoang Long";
+    u.email = null;
+    return Option.Some(u);
 }
 
 function main(): number {
-    print("=== VIT Language v0.4.0 ===");
+    print("=== VIT Language v0.8.0 ===");
 
-    let p: Point;
-    p.x = 3.0;
-    p.y = 4.0;
+    // 1. Try Operator (?) & Null Safety (?. / ??)
+    let raw = readFile("user.json")?;
+    let user = parseUser(raw)?;
 
-    let dist = sqrt(pow(p.x, 2.0) + pow(p.y, 2.0));
-    print("Distance from origin:");
-    print(dist); // In ra 5.000000
+    let email = user?.email ?? "no-email@domain.com";
+    print(email);
+
+    // 2. Runtime Array Bounds Check & Panic Safety
+    let numbers = [10.0, 20.0, 30.0];
+    assert(numbers.length == 3.0, "Array length must be 3");
+
+    print(numbers[0]);
 
     return 0;
 }
