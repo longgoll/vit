@@ -1,17 +1,17 @@
-# VIT Compiler - Complete Architecture & Phase 1-11 Summary (AI Context Document)
+# VIT Compiler - Complete Architecture & Phase 1-12 Summary (AI Context Document)
 
-> **Purpose**: Tài liệu tóm tắt toàn bộ kiến trúc, cú pháp, tính năng và lịch sử 11 Phase đã hoàn thành (v1.1.0) của trình biên dịch **VIT Compiler**. File này được tối ưu hóa cho AI Coding Assistant đọc nhanh, giúp nắm bắt 100% ngữ cảnh dự án với lượng token tối thiểu.
+> **Purpose**: Tài liệu tóm tắt toàn bộ kiến trúc, cú pháp, tính năng và lịch sử 12 Phase đã hoàn thành (v1.2.0) của trình biên dịch **VIT Compiler**. File này được tối ưu hóa cho AI Coding Assistant đọc nhanh, giúp nắm bắt 100% ngữ cảnh dự án với lượng token tối thiểu.
 
 ---
 
 ## 1. Quick Facts & Tech Stack
-* **Project**: VIT Compiler (`v1.1.0`) - Ngôn ngữ biên dịch Native có cú pháp giống JS/TS.
-* **Implementation**: C++20 / Self-Hosted Vit (`src_vit/`), LLVM C++ API (IRBuilder, LLVM IR CodeGen), Monomorphizer Pass, Win32 Concurrency Runtime (`concurrency_rt.c`), Clang Native Linker.
+* **Project**: VIT Compiler (`v1.2.0`) - Ngôn ngữ biên dịch Native có cú pháp giống JS/TS.
+* **Implementation**: C++20 / Self-Hosted Vit (`src_vit/`), LLVM C++ API (IRBuilder, LLVM IR CodeGen), Monomorphizer Pass, Win32 Concurrency Runtime (`concurrency_rt.c`), Socket C Runtime (`net_rt.c`), Clang Native Linker.
 * **Compilation Pipeline**: `Source (.vit)` ➔ `Lexer` ➔ `Parser` ➔ `Monomorphizer (Generics Pass)` ➔ `SemanticAnalyzer (Type Check)` ➔ `LLVMCodeGen (IR + ARC Pass)` ➔ `NativeCompiler (Clang -O1/-O2/-O3)` ➔ `Executable (.exe)`.
 
 ---
 
-## 2. Summary Timeline: Phase 1 -> Phase 11
+## 2. Summary Timeline: Phase 1 -> Phase 12
 
 | Phase | Milestone Name | Features & Scope | Key Files Updated |
 |---|---|---|---|
@@ -26,6 +26,7 @@
 | **Phase 9** | **Built-in Collections & Advanced Stdlib** | - `HashMap<K, V>` & `Set<T>` backed by C runtime (`collections_rt.c`).<br>- CLI args (`getArgCount()`, `getArg()`) & System environment (`getEnv()`).<br>- JSON stringify & escape utilities (`std/json.vit`). | [collections_rt.c](file:///f:/Dev/product/vit/src/runtime/collections_rt.c), [collections.vit](file:///f:/Dev/product/vit/std/collections.vit), [env.vit](file:///f:/Dev/product/vit/std/env.vit), [LLVMCodeGen.cpp](file:///f:/Dev/product/vit/src/codegen/LLVMCodeGen.cpp) |
 | **Phase 10** | **Self-Hosting Compiler** | - 100% Native Self-Hosting Compiler written in Vit (`src_vit/`).<br>- 3-stage bootstrapping workflow (`vitc_stage1.exe`, `vitc_stage2.exe`). | [src_vit/main.vit](file:///f:/Dev/product/vit/src_vit/main.vit), [src_vit/lexer/lexer.vit](file:///f:/Dev/product/vit/src_vit/lexer/lexer.vit), [src_vit/parser/parser.vit](file:///f:/Dev/product/vit/src_vit/parser/parser.vit), [src_vit/codegen/llvm_emitter.vit](file:///f:/Dev/product/vit/src_vit/codegen/llvm_emitter.vit) |
 | **Phase 11** | **Concurrency & Async Engine** | - `async`/`await` language keywords & LLVM lowering.<br>- `Promise<T>` handling.<br>- Native multi-threading & thread-safe message-passing channels (`std/thread`, `std/channel`).<br>- Full multi-statement generic AST cloning in Monomorphizer. | [concurrency_rt.c](file:///f:/Dev/product/vit/src/runtime/concurrency_rt.c), [std/thread.vit](file:///f:/Dev/product/vit/std/thread.vit), [std/async.vit](file:///f:/Dev/product/vit/std/async.vit), [Monomorphizer.cpp](file:///f:/Dev/product/vit/src/semantics/Monomorphizer.cpp), [LLVMCodeGen.cpp](file:///f:/Dev/product/vit/src/codegen/LLVMCodeGen.cpp) |
+| **Phase 12** | **Network Engine & Web Server Framework** | - Non-blocking TCP/UDP sockets (`std/net`).<br>- Native C socket runtime (`net_rt.c`, `-lws2_32`).<br>- HTTP/1.1 Protocol Parser, Async HTTP Server (`HttpServer`) & Client (`httpGet`). | [net_rt.c](file:///f:/Dev/product/vit/src/runtime/net_rt.c), [net.vit](file:///f:/Dev/product/vit/std/net.vit), [http.vit](file:///f:/Dev/product/vit/std/http.vit), [NativeCompiler.cpp](file:///f:/Dev/product/vit/src/codegen/NativeCompiler.cpp) |
 
 ---
 
