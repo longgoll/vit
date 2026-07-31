@@ -1,0 +1,13 @@
+import { stringifyString, stringifyBoolean } from "std/json";
+
+function main(): number {
+    print("=== Testing JSON Module ===");
+
+    let str = stringifyString("Hello \"VIT\"");
+    print("JSON String: " + str);
+
+    let b = stringifyBoolean(true);
+    print("JSON Boolean: " + b);
+
+    return 0;
+}

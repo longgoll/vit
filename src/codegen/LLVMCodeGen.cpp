@@ -96,7 +96,8 @@ std::string LLVMCodeGen::generateIR(ProgramASTNode* program) {
     fullModule << "declare i32 @strcmp(i8*, i8*)\n";
     fullModule << "declare i8* @strcpy(i8*, i8*)\n";
     fullModule << "declare i8* @strcat(i8*, i8*)\n";
-    fullModule << "declare void @exit(i32)\n\n";
+    fullModule << "declare void @exit(i32)\n";
+    fullModule << "declare void @__vit_init_args(i32, i8**)\n\n";
 
     fullModule << "define void @__vit_panic(i8* %msg) {\n";
     fullModule << "  %fmt = getelementptr inbounds [4 x i8], [4 x i8]* @.fmt_str, i64 0, i64 0\n";
@@ -285,14 +286,23 @@ void LLVMCodeGen::visit(FunctionDeclASTNode* node) {
 
     irStream << "define " << llvmRetType << " @" << node->getName() << "(";
     const auto& params = node->getParams();
-    for (size_t i = 0; i < params.size(); ++i) {
-        std::string pType = getLLVMType(params[i].typeName);
-        irStream << pType << " %" << params[i].name;
-        if (i + 1 < params.size()) irStream << ", ";
+    if (currentFunctionName == "main") {
+        irStream << "i32 %argc, i8** %argv";
+    } else {
+        for (size_t i = 0; i < params.size(); ++i) {
+            std::string pType = getLLVMType(params[i].typeName);
+            irStream << pType << " %" << params[i].name;
+            if (i + 1 < params.size()) irStream << ", ";
+        }
     }
     irStream << ") {\n";
     irStream << "entry:\n";
     currentBlockLabel = "entry";
+
+    if (currentFunctionName == "main") {
+        emitIndent();
+        irStream << "call void @__vit_init_args(i32 %argc, i8** %argv)\n";
+    }
 
     for (const auto& param : params) {
         std::string addrReg = "%" + param.name + ".addr";
@@ -816,13 +826,23 @@ void LLVMCodeGen::visit(BinaryOpASTNode* node) {
         irStream << resultReg << " = fdiv double " << lhs << ", " << rhs << "\n";
         lastResultType = "number";
     } else if (op == ">" || op == "<" || op == "==" || op == "!=" || op == ">=" || op == "<=") {
-        if (lhsType == "string" && rhsType == "string") {
-            std::string cmpReg = newReg();
+        if (lhsType == "null" || rhsType == "null" || (lhsType == "string" && rhsType == "string")) {
+            if (lhsType == "string" && rhsType == "string") {
+                std::string cmpReg = newReg();
+                emitIndent();
+                irStream << cmpReg << " = call i32 @strcmp(i8* " << lhs << ", i8* " << rhs << ")\n";
+                std::string condCode = (op == "==") ? "eq" : (op == "!=") ? "ne" : "eq";
+                emitIndent();
+                irStream << resultReg << " = icmp " << condCode << " i32 " << cmpReg << ", 0\n";
+                lastResultType = "boolean";
+                lastResultReg = resultReg;
+                return;
+            }
+            std::string condCode = (op == "==") ? "eq" : "ne";
+            std::string lhsPtr = (lhs == "null") ? "null" : lhs;
+            std::string rhsPtr = (rhs == "null") ? "null" : rhs;
             emitIndent();
-            irStream << cmpReg << " = call i32 @strcmp(i8* " << lhs << ", i8* " << rhs << ")\n";
-            std::string condCode = (op == "==") ? "eq" : (op == "!=") ? "ne" : "eq";
-            emitIndent();
-            irStream << resultReg << " = icmp " << condCode << " i32 " << cmpReg << ", 0\n";
+            irStream << resultReg << " = icmp " << condCode << " i8* " << lhsPtr << ", " << rhsPtr << "\n";
             lastResultType = "boolean";
             lastResultReg = resultReg;
             return;

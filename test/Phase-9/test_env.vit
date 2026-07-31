@@ -1,0 +1,20 @@
+import { getArgCount, getArg, getEnv } from "std/env";
+
+function main(): number {
+    print("=== Testing System Env & CLI Args ===");
+
+    let count = getArgCount();
+    print("CLI Arg count: ");
+    print(count);
+
+    let arg0 = getArg(0.0);
+    print("Arg 0: ");
+    print(arg0);
+
+    let path = getEnv("PATH");
+    if (path != null) {
+        print("PATH env is present!");
+    }
+
+    return 0;
+}

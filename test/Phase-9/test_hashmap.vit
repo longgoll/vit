@@ -1,0 +1,34 @@
+import { HashMap, Set } from "std/collections";
+
+function main(): number {
+    print("=== Testing HashMap & Set ===");
+
+    let map: HashMap;
+    map.init();
+
+    map.set("key1", "value1");
+    map.set("key2", "value2");
+
+    if (map.has("key1")) {
+        print("Found key1: ");
+        print(map.get("key1"));
+    }
+
+    print("Map size: ");
+    print(map.size());
+
+    let tags: Set;
+    tags.init();
+
+    tags.add("vit");
+    tags.add("compiler");
+    tags.add("vit");
+
+    print("Set size: ");
+    print(tags.size());
+
+    map.free();
+    tags.free();
+
+    return 0;
+}

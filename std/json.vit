@@ -1,0 +1,18 @@
+// std/json.vit - JSON Helper Library for Vit
+
+extern function __vit_json_escape_string(str: string): string;
+
+function stringifyString(val: string): string {
+    return __vit_json_escape_string(val);
+}
+
+function stringifyBoolean(val: boolean): string {
+    if (val) {
+        return "true";
+    }
+    return "false";
+}
+
+function parseJSON(jsonStr: string): string {
+    return jsonStr;
+}

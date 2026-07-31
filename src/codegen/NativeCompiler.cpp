@@ -104,7 +104,27 @@ bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const 
     std::string winIrPath = normalizeWinPath(irFilePath);
     std::string winExePath = normalizeWinPath(outputExePath);
 
-    std::string cmd = clangExecutablePath + " " + optLevel + " \"" + winIrPath + "\" -o \"" + winExePath + "\"";
+    std::string exeDir = getExeDir();
+    std::vector<std::string> rtCandidates = {
+        exeDir + "\\src\\runtime\\collections_rt.c",
+        exeDir + "\\..\\src\\runtime\\collections_rt.c",
+        exeDir + "\\..\\..\\src\\runtime\\collections_rt.c",
+        "src/runtime/collections_rt.c",
+        exeDir + "\\src\\runtime\\collections_rt.cpp",
+        exeDir + "\\..\\src\\runtime\\collections_rt.cpp",
+        exeDir + "\\..\\..\\src\\runtime\\collections_rt.cpp",
+        "src/runtime/collections_rt.cpp"
+    };
+    std::string rtPath = "";
+    for (const auto& candidate : rtCandidates) {
+        std::ifstream f(candidate);
+        if (f.good()) {
+            rtPath = "\"" + normalizeWinPath(candidate) + "\" ";
+            break;
+        }
+    }
+
+    std::string cmd = clangExecutablePath + " " + optLevel + " \"" + winIrPath + "\" " + rtPath + "-o \"" + winExePath + "\"";
 
 #ifdef _WIN32
     std::string quietCmd = "cmd.exe /c \"" + cmd + " > NUL 2>&1\"";
@@ -120,7 +140,7 @@ bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const 
         for (const auto& libPath : minGwLibPaths) {
             fallbackCmd += " -L\"" + libPath + "\"";
         }
-        fallbackCmd += " \"" + winIrPath + "\" -o \"" + winExePath + "\"";
+        fallbackCmd += " \"" + winIrPath + "\" " + rtPath + "-o \"" + winExePath + "\"";
         std::string fallbackSystemCmd = "cmd.exe /c \"" + fallbackCmd + "\"";
         exitCode = std::system(fallbackSystemCmd.c_str());
     }

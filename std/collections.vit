@@ -1,0 +1,56 @@
+// std/collections.vit - Built-in Collections Library for Vit
+
+extern function __vit_hashmap_create(): string;
+extern function __vit_hashmap_set(handle: string, key: string, val: string): void;
+extern function __vit_hashmap_get(handle: string, key: string): string;
+extern function __vit_hashmap_has(handle: string, key: string): number;
+extern function __vit_hashmap_remove(handle: string, key: string): void;
+extern function __vit_hashmap_size(handle: string): number;
+extern function __vit_hashmap_free(handle: string): void;
+
+struct HashMap {
+    handle: string,
+    function init(): void {
+        this.handle = __vit_hashmap_create();
+    }
+    function set(key: string, val: string): void {
+        __vit_hashmap_set(this.handle, key, val);
+    }
+    function get(key: string): string {
+        return __vit_hashmap_get(this.handle, key);
+    }
+    function has(key: string): boolean {
+        return __vit_hashmap_has(this.handle, key) == 1.0;
+    }
+    function remove(key: string): void {
+        __vit_hashmap_remove(this.handle, key);
+    }
+    function size(): number {
+        return __vit_hashmap_size(this.handle);
+    }
+    function free(): void {
+        __vit_hashmap_free(this.handle);
+    }
+}
+
+struct Set {
+    handle: string,
+    function init(): void {
+        this.handle = __vit_hashmap_create();
+    }
+    function add(val: string): void {
+        __vit_hashmap_set(this.handle, val, "1");
+    }
+    function has(val: string): boolean {
+        return __vit_hashmap_has(this.handle, val) == 1.0;
+    }
+    function remove(val: string): void {
+        __vit_hashmap_remove(this.handle, val);
+    }
+    function size(): number {
+        return __vit_hashmap_size(this.handle);
+    }
+    function free(): void {
+        __vit_hashmap_free(this.handle);
+    }
+}
