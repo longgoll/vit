@@ -51,6 +51,65 @@ public:
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 
+// Node representing struct member assignment (e.g. p.x = 10;)
+class MemberAssignmentASTNode : public StatementNode {
+private:
+    std::unique_ptr<ExpressionNode> target;
+    std::string member;
+    std::unique_ptr<ExpressionNode> value;
+
+public:
+    MemberAssignmentASTNode(std::unique_ptr<ExpressionNode> targetExpr,
+                            std::string memberName,
+                            std::unique_ptr<ExpressionNode> valExpr)
+        : target(std::move(targetExpr)), member(std::move(memberName)), value(std::move(valExpr)) {}
+
+    ExpressionNode* getTarget() const { return target.get(); }
+    const std::string& getMember() const { return member; }
+    ExpressionNode* getValue() const { return value.get(); }
+
+    NodeType getType() const override { return NodeType::MemberAssignment; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing array element assignment (e.g. arr[i] = 5;)
+class ArrayAssignmentASTNode : public StatementNode {
+private:
+    std::unique_ptr<ExpressionNode> array;
+    std::unique_ptr<ExpressionNode> index;
+    std::unique_ptr<ExpressionNode> value;
+
+public:
+    ArrayAssignmentASTNode(std::unique_ptr<ExpressionNode> arrExpr,
+                           std::unique_ptr<ExpressionNode> indexExpr,
+                           std::unique_ptr<ExpressionNode> valExpr)
+        : array(std::move(arrExpr)), index(std::move(indexExpr)), value(std::move(valExpr)) {}
+
+    ExpressionNode* getArray() const { return array.get(); }
+    ExpressionNode* getIndex() const { return index.get(); }
+    ExpressionNode* getValue() const { return value.get(); }
+
+    NodeType getType() const override { return NodeType::ArrayAssignment; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing a struct declaration (e.g. struct Point { x: number, y: number })
+class StructDeclASTNode : public StatementNode {
+private:
+    std::string name;
+    std::vector<std::pair<std::string, std::string>> fields; // name -> typeName
+
+public:
+    StructDeclASTNode(std::string structName, std::vector<std::pair<std::string, std::string>> structFields)
+        : name(std::move(structName)), fields(std::move(structFields)) {}
+
+    const std::string& getName() const { return name; }
+    const std::vector<std::pair<std::string, std::string>>& getFields() const { return fields; }
+
+    NodeType getType() const override { return NodeType::StructDecl; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
 // Node representing a block of statements (e.g. { stmt1; stmt2; })
 class BlockASTNode : public StatementNode {
 private:

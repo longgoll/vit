@@ -48,6 +48,21 @@ public:
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 
+// Node representing an array literal (e.g. [10, 20, 30])
+class ArrayLiteralASTNode : public ExpressionNode {
+private:
+    std::vector<std::unique_ptr<ExpressionNode>> elements;
+
+public:
+    explicit ArrayLiteralASTNode(std::vector<std::unique_ptr<ExpressionNode>> elems)
+        : elements(std::move(elems)) {}
+
+    const std::vector<std::unique_ptr<ExpressionNode>>& getElements() const { return elements; }
+
+    NodeType getType() const override { return NodeType::ArrayLiteral; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
 // Node representing a variable expression (e.g. x, y)
 class VariableExprASTNode : public ExpressionNode {
 private:
@@ -59,6 +74,43 @@ public:
     const std::string& getName() const { return name; }
 
     NodeType getType() const override { return NodeType::VariableExpr; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing member access (e.g. p.x)
+class MemberAccessASTNode : public ExpressionNode {
+private:
+    std::unique_ptr<ExpressionNode> target;
+    std::string member;
+
+public:
+    MemberAccessASTNode(std::unique_ptr<ExpressionNode> targetExpr, std::string memberName)
+        : target(std::move(targetExpr)), member(std::move(memberName)) {}
+
+    ExpressionNode* getTarget() const { return target.get(); }
+    std::unique_ptr<ExpressionNode> takeTarget() { return std::move(target); }
+    const std::string& getMember() const { return member; }
+
+    NodeType getType() const override { return NodeType::MemberAccess; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing array indexing (e.g. arr[i])
+class ArrayAccessASTNode : public ExpressionNode {
+private:
+    std::unique_ptr<ExpressionNode> array;
+    std::unique_ptr<ExpressionNode> index;
+
+public:
+    ArrayAccessASTNode(std::unique_ptr<ExpressionNode> arrExpr, std::unique_ptr<ExpressionNode> indexExpr)
+        : array(std::move(arrExpr)), index(std::move(indexExpr)) {}
+
+    ExpressionNode* getArray() const { return array.get(); }
+    ExpressionNode* getIndex() const { return index.get(); }
+    std::unique_ptr<ExpressionNode> takeArray() { return std::move(array); }
+    std::unique_ptr<ExpressionNode> takeIndex() { return std::move(index); }
+
+    NodeType getType() const override { return NodeType::ArrayAccess; }
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 

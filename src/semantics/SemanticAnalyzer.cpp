@@ -42,6 +42,7 @@ void SemanticAnalyzer::reportError(const std::string& msg) {
 bool SemanticAnalyzer::analyze(ProgramASTNode* program) {
     scopeStack.clear();
     functionTable.clear();
+    structTable.clear();
     errorMessages.clear();
     hasError = false;
     loopDepth = 0;
@@ -53,7 +54,14 @@ bool SemanticAnalyzer::analyze(ProgramASTNode* program) {
 void SemanticAnalyzer::visit(ProgramASTNode* node) {
     enterScope();
 
-    // First pass: Register all functions in global table
+    // First pass: Register structs and function signatures
+    for (const auto& stmt : node->getTopLevelStatements()) {
+        if (stmt->getType() == NodeType::StructDecl) {
+            auto structDecl = static_cast<StructDeclASTNode*>(stmt.get());
+            structTable[structDecl->getName()] = structDecl->getFields();
+        }
+    }
+
     for (const auto& func : node->getFunctions()) {
         std::vector<std::string> paramTypes;
         for (const auto& p : func->getParams()) {
@@ -96,11 +104,25 @@ void SemanticAnalyzer::visit(BlockASTNode* node) {
     exitScope();
 }
 
+void SemanticAnalyzer::visit(StructDeclASTNode* node) {
+    structTable[node->getName()] = node->getFields();
+}
+
 void SemanticAnalyzer::visit(VarDeclASTNode* node) {
+    std::string typeName = node->getTypeName();
+
     if (node->getInitializer()) {
         node->getInitializer()->accept(this);
+        if (typeName.empty()) {
+            typeName = lastInferredType; // Type Inference
+        }
     }
-    declareVariable(node->getName(), node->getTypeName(), node->getIsConst());
+
+    if (typeName.empty()) {
+        typeName = "number"; // Fallback default
+    }
+
+    declareVariable(node->getName(), typeName, node->getIsConst());
 }
 
 void SemanticAnalyzer::visit(AssignmentASTNode* node) {
@@ -111,6 +133,27 @@ void SemanticAnalyzer::visit(AssignmentASTNode* node) {
         reportError("Cannot re-assign to const variable '" + node->getName() + "'.");
     }
 
+    if (node->getValue()) {
+        node->getValue()->accept(this);
+    }
+}
+
+void SemanticAnalyzer::visit(MemberAssignmentASTNode* node) {
+    if (node->getTarget()) {
+        node->getTarget()->accept(this);
+    }
+    if (node->getValue()) {
+        node->getValue()->accept(this);
+    }
+}
+
+void SemanticAnalyzer::visit(ArrayAssignmentASTNode* node) {
+    if (node->getArray()) {
+        node->getArray()->accept(this);
+    }
+    if (node->getIndex()) {
+        node->getIndex()->accept(this);
+    }
     if (node->getValue()) {
         node->getValue()->accept(this);
     }
@@ -196,6 +239,18 @@ void SemanticAnalyzer::visit(StringLiteralASTNode* node) {
     lastInferredType = "string";
 }
 
+void SemanticAnalyzer::visit(ArrayLiteralASTNode* node) {
+    std::string elemType = "number";
+    if (!node->getElements().empty()) {
+        node->getElements()[0]->accept(this);
+        elemType = lastInferredType;
+        for (size_t i = 1; i < node->getElements().size(); ++i) {
+            node->getElements()[i]->accept(this);
+        }
+    }
+    lastInferredType = elemType + "[]";
+}
+
 void SemanticAnalyzer::visit(VariableExprASTNode* node) {
     const SymbolInfo* sym = lookupVariable(node->getName());
     if (!sym) {
@@ -203,6 +258,45 @@ void SemanticAnalyzer::visit(VariableExprASTNode* node) {
         lastInferredType = "unknown";
     } else {
         lastInferredType = sym->typeName;
+    }
+}
+
+void SemanticAnalyzer::visit(MemberAccessASTNode* node) {
+    if (node->getTarget()) {
+        node->getTarget()->accept(this);
+    }
+    std::string structType = lastInferredType;
+    auto it = structTable.find(structType);
+    if (it != structTable.end()) {
+        bool foundField = false;
+        for (const auto& field : it->second) {
+            if (field.first == node->getMember()) {
+                lastInferredType = field.second;
+                foundField = true;
+                break;
+            }
+        }
+        if (!foundField) {
+            reportError("Field '" + node->getMember() + "' does not exist on struct '" + structType + "'.");
+            lastInferredType = "unknown";
+        }
+    } else {
+        lastInferredType = "unknown";
+    }
+}
+
+void SemanticAnalyzer::visit(ArrayAccessASTNode* node) {
+    if (node->getArray()) {
+        node->getArray()->accept(this);
+    }
+    std::string arrType = lastInferredType;
+    if (node->getIndex()) {
+        node->getIndex()->accept(this);
+    }
+    if (arrType.size() > 2 && arrType.substr(arrType.size() - 2) == "[]") {
+        lastInferredType = arrType.substr(0, arrType.size() - 2);
+    } else {
+        lastInferredType = "number";
     }
 }
 

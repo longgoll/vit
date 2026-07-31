@@ -20,7 +20,9 @@ static const std::unordered_map<std::string, TokenType> keywords = {
     {"false", TokenType::KwFalse},
     {"boolean", TokenType::KwBoolean},
     {"string", TokenType::KwString},
-    {"void", TokenType::KwVoid}
+    {"void", TokenType::KwVoid},
+    {"struct", TokenType::KwStruct},
+    {"extern", TokenType::KwExtern}
 };
 
 Lexer::Lexer(std::string sourceCode) : source(std::move(sourceCode)) {}
@@ -166,10 +168,13 @@ Token Lexer::nextToken() {
         case '-': return Token(TokenType::Minus, "-", startLine, startColumn);
         case '*': return Token(TokenType::Star, "*", startLine, startColumn);
         case '/': return Token(TokenType::Slash, "/", startLine, startColumn);
+        case '.': return Token(TokenType::Dot, ".", startLine, startColumn);
         case '(': return Token(TokenType::LParen, "(", startLine, startColumn);
         case ')': return Token(TokenType::RParen, ")", startLine, startColumn);
         case '{': return Token(TokenType::LBrace, "{", startLine, startColumn);
         case '}': return Token(TokenType::RBrace, "}", startLine, startColumn);
+        case '[': return Token(TokenType::LBracket, "[", startLine, startColumn);
+        case ']': return Token(TokenType::RBracket, "]", startLine, startColumn);
         case ':': return Token(TokenType::Colon, ":", startLine, startColumn);
         case ',': return Token(TokenType::Comma, ",", startLine, startColumn);
         case ';': return Token(TokenType::Semicolon, ";", startLine, startColumn);

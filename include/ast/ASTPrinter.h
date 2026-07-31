@@ -21,6 +21,8 @@ public:
     void visit(BlockASTNode* node) override;
     void visit(VarDeclASTNode* node) override;
     void visit(AssignmentASTNode* node) override;
+    void visit(MemberAssignmentASTNode* node) override;
+    void visit(ArrayAssignmentASTNode* node) override;
     void visit(IfASTNode* node) override;
     void visit(WhileASTNode* node) override;
     void visit(ForASTNode* node) override;
@@ -28,10 +30,14 @@ public:
     void visit(ContinueASTNode* node) override;
     void visit(ReturnASTNode* node) override;
     void visit(PrintASTNode* node) override;
+    void visit(StructDeclASTNode* node) override;
     void visit(NumberLiteralASTNode* node) override;
     void visit(BooleanLiteralASTNode* node) override;
     void visit(StringLiteralASTNode* node) override;
+    void visit(ArrayLiteralASTNode* node) override;
     void visit(VariableExprASTNode* node) override;
+    void visit(MemberAccessASTNode* node) override;
+    void visit(ArrayAccessASTNode* node) override;
     void visit(UnaryOpASTNode* node) override;
     void visit(BinaryOpASTNode* node) override;
     void visit(CallExprASTNode* node) override;

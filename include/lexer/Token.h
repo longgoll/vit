@@ -24,6 +24,8 @@ enum class TokenType {
     KwBoolean,  // boolean
     KwString,   // string
     KwVoid,     // void
+    KwStruct,   // struct
+    KwExtern,   // extern
 
     // Identifiers & Literals
     Identifier,    // e.g. add, main, x, number
@@ -45,12 +47,15 @@ enum class TokenType {
     AndAnd,       // &&
     PipePipe,     // ||
     Exclamation,  // !
+    Dot,          // .
 
     // Delimiters
     LParen,    // (
     RParen,    // )
     LBrace,    // {
     RBrace,    // }
+    LBracket,  // [
+    RBracket,  // ]
     Colon,     // :
     Comma,     // ,
     Semicolon, // ;
@@ -88,6 +93,8 @@ inline std::string_view tokenTypeToString(TokenType type) {
         case TokenType::KwBoolean: return "boolean";
         case TokenType::KwString: return "string";
         case TokenType::KwVoid: return "void";
+        case TokenType::KwStruct: return "struct";
+        case TokenType::KwExtern: return "extern";
         case TokenType::Identifier: return "Identifier";
         case TokenType::NumberLiteral: return "NumberLiteral";
         case TokenType::StringLiteral: return "StringLiteral";
@@ -105,10 +112,13 @@ inline std::string_view tokenTypeToString(TokenType type) {
         case TokenType::AndAnd: return "&&";
         case TokenType::PipePipe: return "||";
         case TokenType::Exclamation: return "!";
+        case TokenType::Dot: return ".";
         case TokenType::LParen: return "(";
         case TokenType::RParen: return ")";
         case TokenType::LBrace: return "{";
         case TokenType::RBrace: return "}";
+        case TokenType::LBracket: return "[";
+        case TokenType::RBracket: return "]";
         case TokenType::Colon: return ":";
         case TokenType::Comma: return ",";
         case TokenType::Semicolon: return ";";

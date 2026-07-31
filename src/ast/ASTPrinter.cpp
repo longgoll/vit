@@ -24,7 +24,11 @@ void ASTPrinter::visit(ProgramASTNode* node) {
 
 void ASTPrinter::visit(FunctionDeclASTNode* node) {
     printIndent();
-    out << "[FunctionDeclASTNode] " << node->getName() << "(";
+    if (node->getIsExtern()) {
+        out << "[ExternFunctionDeclASTNode] " << node->getName() << "(";
+    } else {
+        out << "[FunctionDeclASTNode] " << node->getName() << "(";
+    }
     const auto& params = node->getParams();
     for (size_t i = 0; i < params.size(); ++i) {
         out << params[i].name << ": " << params[i].typeName;
@@ -69,6 +73,36 @@ void ASTPrinter::visit(AssignmentASTNode* node) {
     indentLevel++;
     if (node->getValue()) {
         node->getValue()->accept(this);
+    }
+    indentLevel--;
+}
+
+void ASTPrinter::visit(MemberAssignmentASTNode* node) {
+    printIndent();
+    out << "[MemberAssignmentASTNode] member: ." << node->getMember() << " =\n";
+    indentLevel++;
+    if (node->getTarget()) node->getTarget()->accept(this);
+    if (node->getValue()) node->getValue()->accept(this);
+    indentLevel--;
+}
+
+void ASTPrinter::visit(ArrayAssignmentASTNode* node) {
+    printIndent();
+    out << "[ArrayAssignmentASTNode] [] =\n";
+    indentLevel++;
+    if (node->getArray()) node->getArray()->accept(this);
+    if (node->getIndex()) node->getIndex()->accept(this);
+    if (node->getValue()) node->getValue()->accept(this);
+    indentLevel--;
+}
+
+void ASTPrinter::visit(StructDeclASTNode* node) {
+    printIndent();
+    out << "[StructDeclASTNode] struct " << node->getName() << " {\n";
+    indentLevel++;
+    for (const auto& field : node->getFields()) {
+        printIndent();
+        out << field.first << ": " << field.second << "\n";
     }
     indentLevel--;
 }
@@ -198,9 +232,36 @@ void ASTPrinter::visit(StringLiteralASTNode* node) {
     out << "[StringLiteralASTNode] \"" << node->getValue() << "\"\n";
 }
 
+void ASTPrinter::visit(ArrayLiteralASTNode* node) {
+    printIndent();
+    out << "[ArrayLiteralASTNode]\n";
+    indentLevel++;
+    for (const auto& elem : node->getElements()) {
+        elem->accept(this);
+    }
+    indentLevel--;
+}
+
 void ASTPrinter::visit(VariableExprASTNode* node) {
     printIndent();
     out << "[VariableExprASTNode] " << node->getName() << "\n";
+}
+
+void ASTPrinter::visit(MemberAccessASTNode* node) {
+    printIndent();
+    out << "[MemberAccessASTNode] member: ." << node->getMember() << "\n";
+    indentLevel++;
+    if (node->getTarget()) node->getTarget()->accept(this);
+    indentLevel--;
+}
+
+void ASTPrinter::visit(ArrayAccessASTNode* node) {
+    printIndent();
+    out << "[ArrayAccessASTNode]\n";
+    indentLevel++;
+    if (node->getArray()) node->getArray()->accept(this);
+    if (node->getIndex()) node->getIndex()->accept(this);
+    indentLevel--;
 }
 
 void ASTPrinter::visit(UnaryOpASTNode* node) {

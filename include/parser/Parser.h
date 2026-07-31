@@ -30,12 +30,13 @@ private:
     Token consume(TokenType type, const std::string& errorMessage);
 
     // Grammars
-    std::unique_ptr<FunctionDeclASTNode> parseFunctionDecl();
+    std::unique_ptr<FunctionDeclASTNode> parseFunctionDecl(bool isExtern = false);
+    std::unique_ptr<StructDeclASTNode> parseStructDecl();
     std::vector<Parameter> parseParameterList();
     std::unique_ptr<BlockASTNode> parseBlock();
     std::unique_ptr<StatementNode> parseStatement();
     std::unique_ptr<VarDeclASTNode> parseVarDecl();
-    std::unique_ptr<StatementNode> parseIdentifierStatement(); // Assignment or Print or Call
+    std::unique_ptr<StatementNode> parseIdentifierStatement(); // Assignment, MemberAssignment, ArrayAssignment, Print or Call
     std::unique_ptr<IfASTNode> parseIf();
     std::unique_ptr<WhileASTNode> parseWhile();
     std::unique_ptr<ForASTNode> parseFor();
@@ -53,7 +54,9 @@ private:
     std::unique_ptr<ExpressionNode> parseAdditive();
     std::unique_ptr<ExpressionNode> parseMultiplicative();
     std::unique_ptr<ExpressionNode> parseUnary();
+    std::unique_ptr<ExpressionNode> parsePostfix(std::unique_ptr<ExpressionNode> expr);
     std::unique_ptr<ExpressionNode> parsePrimary();
+    std::unique_ptr<ExpressionNode> parseArrayLiteral();
 
 public:
     explicit Parser(Lexer lex);

@@ -16,7 +16,7 @@
 
 using namespace vit;
 
-const std::string VIT_VERSION = "0.2.0 (Phase 2)";
+const std::string VIT_VERSION = "0.3.0 (Phase 3)";
 
 void printUsage(const char* progName) {
     std::cout << "VIT Language Compiler v" << VIT_VERSION << "\n\n";

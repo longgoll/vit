@@ -1,0 +1,9 @@
+extern function sqrt(x: number): number;
+
+function main(): number {
+    print("--- FFI Test ---");
+    let val: number = sqrt(25.0);
+    print("sqrt(25.0):");
+    print(val);
+    return 0;
+}

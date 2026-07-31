@@ -1,0 +1,13 @@
+function main(): number {
+    print("--- Array & Type Inference Test ---");
+    let arr = [10, 20, 30];
+    let sum = 0;
+
+    for (let i = 0; i < 3; i = i + 1) {
+        sum = sum + arr[i];
+    }
+
+    print("Sum of array:");
+    print(sum);
+    return 0;
+}
