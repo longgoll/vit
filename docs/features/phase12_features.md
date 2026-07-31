@@ -1,62 +1,44 @@
-# Đặc Tả Kế Hoạch Phase 12: Cross-Compilation, WASM & Optimizations (v1.0.0)
+# Đặc Tả Kế Hoạch Phase 12: Developer Experience & Ecosystem (v1.2.0)
 
-Tài liệu này là thiết kế chi tiết và kế hoạch triển khai cho **Phase 12** của trình biên dịch **VIT Compiler** - cột mốc **Release v1.0.0**.
+Tài liệu này là thiết kế chi tiết và kế hoạch triển khai cho **Phase 12** của trình biên dịch **VIT Compiler**.
 
 ---
 
 ## 1. Mục Tiêu Phase 12
 
-Đạt cột mốc chính thức **VIT Compiler v1.0.0 Release**:
-1. **Multi-target Cross-Compilation**: Biên dịch từ một OS (ví dụ Windows) ra file thực thi cho Linux (`x86_64-linux-gnu`), macOS (`aarch64-apple-darwin`), hoặc WebAssembly (`wasm32-wasi`).
-2. **WebAssembly Target (`wasm32`)**: Biên dịch thẳng mã Vit thành file `.wasm` chạy được trên Browser và các môi trường Serverless (Cloudflare Workers, WASI).
-3. **Custom LLVM ARC Escape Analysis Pass**: Pass tối ưu hóa chuyên sâu tự động loại bỏ các lệnh `retain`/`release` thừa và chuyển phân bổ bộ nhớ từ Heap sang Stack nếu đối tượng không thoát ra khỏi scope hiện tại.
+Tạo dựng hệ sinh thái công cụ hỗ trợ lập trình viên (Developer Experience - DX) đỉnh cao:
+1. **Language Server Protocol (`vit-lsp`)**: Server LSP cho IDEs (VS Code) hỗ trợ Autocomplete, Go-to-definition, Hover, và Diagnostics.
+2. **Package Manager (`vit pm`)**: Quản lý thư viện và dự án via `vit.toml` / `vit.json`.
+3. **Interactive REPL (`vit repl`)**: Môi trường tương tác gõ mã chạy trực tiếp nhờ LLVM ORC JIT Engine.
+4. **Formatter & Linter (`vit fmt`, `vit lint`)**: Công cụ tự động định dạng mã nguồn và kiểm tra mùi mã.
 
 ---
 
-## 2. Thiết Kế Cú Pháp & Ví Dụ Sử Dụng CLI
+## 2. Thiết Kế Công Cụ & Cú Pháp Dòng Lệnh
 
 ```cmd
-# 1. Biên dịch Cross-platform ra Linux x86_64
-vit build app.vit --target x86_64-unknown-linux-gnu -O3 -o app_linux
+# 1. Khởi tạo dự án Vit mới
+vit init my-app
 
-# 2. Biên dịch Cross-platform ra macOS Apple Silicon (ARM64)
-vit build app.vit --target aarch64-apple-darwin -O3 -o app_mac
+# 2. Cài đặt thư viện phụ thuộc
+vit add github.com/user/vit-http
 
-# 3. Biên dịch ra WebAssembly
-vit build app.vit --target wasm32-wasi -o app.wasm
+# 3. Môi trường REPL JIT
+vit repl
 
-# 4. Bật Custom ARC Escape Analysis Pass để tối ưu bộ nhớ tối đa
-vit build app.vit -O3 --enable-escape-analysis
+# 4. Định dạng lại mã nguồn
+vit fmt src/
 ```
 
 ---
 
 ## 3. Kiến Trúc Chi Tiết Cần Thay Đổi Trong Codebase
 
-### 3.1. Target Triple & LLVM Target Machine (`src/codegen/NativeCompiler.cpp`)
-* Cấu hình LLVM Target Machine dựa trên cờ `--target <triple>`.
-* Tích hợp Clang Cross-linker flags (`-target <triple> --sysroot=<path>`).
+### 3.1. Language Server Protocol (`src/tools/lsp/`)
+* Binary `vit-lsp` giao tiếp JSON-RPC 2.0 trên STDIN/STDOUT.
 
-### 3.2. WebAssembly Backend Codegen
-* Tích hợp LLVM WebAssembly Backend Target (`LLVMInitializeWebAssemblyTarget()`, `LLVMInitializeWebAssemblyTargetInfo()`).
-* Chuyển đổi FFI từ C standard library sang WASI (WebAssembly System Interface) imports.
+### 3.2. LLVM ORC JIT Engine cho `vit repl` (`src/tools/repl/`)
+* Sử dụng LLVM `orc::LLJIT` để biên dịch tức thì từng câu lệnh Vit.
 
-### 3.3. LLVM Custom Pass: ARC Escape Analysis Pass (`src/codegen/ARCEscapeAnalysis.cpp`)
-* Xây dựng một custom LLVM IR Function Pass.
-* Phân tích đồ thị luồng dữ liệu (Dataflow Analysis): Nếu một struct hoặc mảng khởi tạo trong khối không bị leak ra bên ngoài (không gán vào biến toàn cục, không return, không truyền vào hàm external), chuyển lệnh phân bổ từ `malloc` (heap) sang `alloca` (stack) và xóa bỏ các lệnh `@free()` tương ứng.
-
----
-
-## 4. Danh Sách File Cần Cập Nhật Phân Chia Theo Task
-
-1. **Task 1: Multi-target CLI & LLVM Target Machine Handling**
-   - `src/codegen/NativeCompiler.cpp` & `src/main.cpp`.
-
-2. **Task 2: WASM Target Emitter & WASI Standard Library Integration**
-   - `src/codegen/WasmCodeGen.cpp` & `std/wasi.vit`.
-
-3. **Task 3: ARC Custom Escape Analysis Pass**
-   - `include/codegen/ARCEscapeAnalysis.h` & `src/codegen/ARCEscapeAnalysis.cpp`.
-
-4. **Task 4: v1.0.0 Release Verification & Benchmarks Suite**
-   - `test/benchmarks/`: Benchmark tốc độ thực thi so sánh với Node.js, C++, và Rust.
+### 3.3. Package Manager (`src/tools/pm/`)
+* Lệnh `vit init`, `vit add`, `vit install`, parse `vit.json`.

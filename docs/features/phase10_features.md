@@ -1,88 +1,59 @@
-# Đặc Tả Kế Hoạch Phase 10: Concurrency & Async Engine (v0.10.0)
+# Đặc Tả Kế Hoạch Phase 10: Self-Hosting Compiler (v1.0.0 Milestone)
 
-Tài liệu này là thiết kế chi tiết và kế hoạch triển khai cho **Phase 10** của trình biên dịch **VIT Compiler**.
+Tài liệu này là thiết kế chi tiết cho cột mốc quan trọng nhất của **VIT Compiler**: **Self-Hosting (Trình biên dịch Tự biên dịch)**.
 
 ---
 
 ## 1. Mục Tiêu Phase 10
 
-Xây dựng mô hình lập trình bất đồng bộ và đa luồng hiệu năng cao cho **VIT Compiler**:
-1. **`async` / `await` Syntax**: Cú pháp khai báo `async function` và từ khóa `await` cho phép viết mã bất đồng bộ trông giống mã đồng bộ.
-2. **LLVM IR State Machine Transformation (Coroutines)**: Chuyển đổi hàm `async` thành một State Machine phân bổ trên Stack/Heap.
-3. **Multi-threading & Channel Communication (`std/thread`, `std/channel`)**: Tạo Native Worker Threads và giao tiếp truyền tin giữa các luồng an toàn (Message Passing).
-4. **Lightweight Event Loop**: Tích hợp Event Loop không chặn (Non-blocking I/O).
+Biến VIT thành một ngôn ngữ hoàn toàn độc lập bằng cách viết lại chính trình biên dịch **VIT Compiler bằng chính ngôn ngữ VIT (`vitc.vit`)**:
+1. **Bootstrap Phase (Thủ tục Tự khởi sinh)**:
+   - Dùng trình biên dịch C++ (`build/vit.exe`) hiện tại để biên dịch mã nguồn trình biên dịch viết bằng Vit (`src_vit/main.vit`) thành file thực thi `vitc_stage1.exe`.
+   - Dùng `vitc_stage1.exe` tự biên dịch lại mã nguồn `src_vit/main.vit` thành `vitc_stage2.exe`.
+2. **Kiểm tra tính nhất quán (Bootstrapping Verification)**: So sánh đầu ra giữa `stage1` và `stage2`.
 
 ---
 
-## 2. Thiết Kế Cú Pháp & Ví Dụ Mã Nguồn
+## 2. Tiền Đề Tính Năng Đã Có (Từ Phase 1 -> Phase 9)
 
-```javascript
-import { fetchHttp } from "std/net";
-import { Thread, Channel } from "std/thread";
+Sau khi hoàn thành Phase 8 và Phase 9, Vit đã sở hữu 100% công cụ nòng nốt để tự viết chính trình biên dịch của mình:
+- **Phase 5**: Struct Methods & String Ops ➔ Xử lý chuỗi mã nguồn & AST Nodes.
+- **Phase 7**: Generics, Enums & Pattern Matching ➔ Biểu diễn Token & AST Node an toàn.
+- **Phase 7**: File I/O (`std/fs.vit`) ➔ Đọc file `.vit` & xuất file `.ll` (LLVM IR).
+- **Phase 8**: Result<T, E> & Try Operator (`?`) ➔ Quản lý lỗi Lexer/Parser không gây crash.
+- **Phase 9**: HashMap<K, V> ➔ Xây dựng Bảng ký hiệu (Symbol Table) & Scope Resolver.
 
-// 1. Async Function Definition
-async function fetchUserData(userId: number): Promise<string> {
-    print("Fetching user data asynchronously...");
-    let url = "https://api.example.com/users/" + userId;
-    let response = await fetchHttp(url); // Non-blocking await
-    return response;
-}
+---
 
-// 2. Multi-threading & Channels
-function workerTask(ch: Channel<number>): void {
-    let sum = 0.0;
-    for (let i = 0; i < 1000000; i = i + 1) {
-        sum = sum + i;
-    }
-    ch.send(sum); // Gửi kết quả qua channel
-}
+## 3. Kiến Trúc Của Self-Hosted Compiler (`src_vit/`)
 
-async function main(): number {
-    // Gọi hàm Async
-    let data = await fetchUserData(42.0);
-    print("Received Data: " + data);
-
-    // Giao tiếp Đa Luồng (Worker Thread & Channel)
-    let ch = new Channel<number>();
-    let t = Thread.spawn(() => workerTask(ch));
-
-    let result = ch.receive(); // Nhận dữ liệu từ worker thread
-    print("Thread Result: " + result);
-
-    t.join();
-    return 0;
-}
+```text
+src_vit/
+├── lexer/
+│   ├── token.vit       # Enum Token, TokenType
+│   └── lexer.vit       # Lexer class phân tích từ vựng
+├── parser/
+│   ├── ast.vit         # Struct Node cho AST
+│   └── parser.vit      # Recursive Descent Parser
+├── semantics/
+│   ├── symbol_table.vit # HashMap quản lý biến và hàm
+│   └── type_checker.vit # Kiểm tra kiểu dữ liệu
+├── codegen/
+│   └── llvm_emitter.vit # LLVM IR Text Generation
+└── main.vit            # CLI Entry Point chính của vitc
 ```
 
 ---
 
-## 3. Kiến Trúc Chi Tiết Cần Thay Đổi Trong Codebase
+## 4. Quy Trình Bootstrapping 3 Giai Đoạn
 
-### 3.1. Lexer & Parser
-* **Token mới**: `TokenType::KwAsync` (`async`), `TokenType::KwAwait` (`await`).
-* **Parser**: Parse `async function` thành `FunctionDeclASTNode` có cờ `isAsync = true`. Parse `await expr` thành `AwaitExprASTNode(expr)`.
+```cmd
+# Stage 0: Trình biên dịch C++ gốc (vit_cpp.exe) biên dịch mã nguồn Vit
+vit_cpp.exe build src_vit/main.vit -o bin/vitc_stage1.exe
 
-### 3.2. LLVM IR CodeGen: State Machine Transformation
-* Khi biên dịch một hàm `async`, `LLVMCodeGen` hạ cấp hàm đó thành một cấu trúc dữ liệu State Machine chứa:
-  - Trạng thái hiện tại (`i32 state`).
-  - Các biến cục bộ sống qua lời gọi `await`.
-* Mỗi điểm `await` tạo ra một điểm rẽ nhánh (yield point) trả quyền điều khiển lại cho Event Loop.
+# Stage 1: Trình biên dịch bằng Vit (vitc_stage1.exe) tự biên dịch chính nó
+bin/vitc_stage1.exe build src_vit/main.vit -o bin/vitc_stage2.exe
 
-### 3.3. Runtime Event Loop & Thread Pool (`src/runtime/event_loop.cpp`)
-* Tích hợp Runtime Event Loop nền móng (sử dụng libuv hoặc OS Native I/O epoll/kqueue/IOCP).
-
----
-
-## 4. Danh Sách File Cần Cập Nhật Phân Chia Theo Task
-
-1. **Task 1: Lexer & Parser for `async`/`await`**
-   - `include/lexer/Token.h`, `src/lexer/Lexer.cpp`, `src/parser/Parser.cpp`.
-
-2. **Task 2: LLVM IR Generator for Coroutines & State Machine**
-   - `src/codegen/LLVMCodeGen.cpp`: Hạ cấp `async function` xuống Coroutine State Machine.
-
-3. **Task 3: Threading & Channel Standard Library (`std/thread.vit`)**
-   - Triển khai `Thread.spawn()` và `Channel<T>`.
-
-4. **Task 4: Non-blocking I/O Event Loop Integration**
-   - `src/runtime/event_loop.cpp` & `test/Phase-10/test_async.vit`.
+# Stage 2: Kiểm tra tính đúng đắn
+bin/vitc_stage2.exe run test/Phase-1/test_hello.vit
+```

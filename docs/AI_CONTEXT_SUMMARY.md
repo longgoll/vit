@@ -106,7 +106,7 @@ vit/
 
 ---
 
-## 5. Future Roadmap (Phase 8 -> Phase 12 / v1.0.0)
+## 5. Future Roadmap (Phase 8 -> Phase 13)
 
 AI Assistants reading this summary should refer to the following feature spec files for implementation:
 
@@ -118,14 +118,20 @@ AI Assistants reading this summary should refer to the following feature spec fi
 * **Spec File**: [phase9_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase9_features.md)
 * **Scope**: `HashMap<K, V>`, `Set<T>`, `Queue<T>`, `std/json` parser/stringify, `std/env` CLI args.
 
-### **Phase 10: Concurrency & Async Engine** (`v0.10.0`)
+### 🔥 **Phase 10: Self-Hosting Compiler (`v1.0.0 Milestone`)**
 * **Spec File**: [phase10_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase10_features.md)
+* **Scope**: Viết lại toàn bộ Trình biên dịch VIT bằng chính ngôn ngữ VIT (`vitc.vit`), quy trình Bootstrapping 3 giai đoạn (Stage 0 ➔ Stage 1 ➔ Stage 2 verification). Cột mốc v1.0.0 Tự biên dịch!
+
+### **Phase 11: Concurrency & Async Engine** (`v1.1.0`)
+* **Spec File**: [phase11_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase11_features.md)
 * **Scope**: `async`/`await` syntax, Coroutine State Machine LLVM IR transformation, `std/thread`, `std/channel`, Event Loop.
 
-### **Phase 11: Developer Experience & Ecosystem** (`v0.11.0`)
-* **Spec File**: [phase11_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase11_features.md)
+### **Phase 12: Developer Experience & Ecosystem** (`v1.2.0`)
+* **Spec File**: [phase12_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase12_features.md)
 * **Scope**: Language Server Protocol (`vit-lsp`), Package Manager (`vit pm`), Interactive LLVM JIT REPL (`vit repl`), Formatter & Linter (`vit fmt`, `vit lint`).
 
-### **Phase 12: Cross-Compilation, WASM & ARC Optimization** (`v1.0.0`)
-* **Spec File**: [phase12_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase12_features.md)
+### **Phase 13: Cross-Compilation, WASM & ARC Optimization** (`v2.0.0 Release`)
+* **Spec File**: [phase13_features.md](file:///d:/HoangLong/Dev/vit/docs/features/phase13_features.md)
 * **Scope**: Target triples (`--target x86_64-linux`, `aarch64-darwin`, `wasm32-wasi`), WebAssembly backend, Custom ARC Escape Analysis Pass.
+
+
