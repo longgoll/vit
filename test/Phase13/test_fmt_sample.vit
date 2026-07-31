@@ -1,0 +1,7 @@
+function testFmt(a: number, b: number): number {
+    let sum = a + b;
+    if(sum > 10) {
+        print(Greater than 10);
+    }
+    return sum;
+}

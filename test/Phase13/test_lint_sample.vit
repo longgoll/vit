@@ -1,0 +1,10 @@
+function BadNameFunc(): void {
+    let BadVar = 10;
+    print(BadVar);
+    return;
+    let deadCode = 20;
+}
+
+struct bad_struct {
+    id: number
+}

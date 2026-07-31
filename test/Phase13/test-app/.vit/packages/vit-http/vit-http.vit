@@ -1,0 +1,4 @@
+// Package: github.com/user/vit-http
+function vit-httpInfo(): string {
+    return "Package vit-http loaded successfully.";
+}

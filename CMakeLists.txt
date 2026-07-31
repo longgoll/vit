@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-set(SOURCES
+set(COMMON_SOURCES
     src/ast/ASTPrinter.cpp
     src/diagnostics/DiagnosticPrinter.cpp
     src/lexer/Lexer.cpp
@@ -14,13 +14,19 @@ set(SOURCES
     src/semantics/SemanticAnalyzer.cpp
     src/semantics/Monomorphizer.cpp
     src/codegen/LLVMCodeGen.cpp
-
     src/codegen/NativeCompiler.cpp
-    src/main.cpp
+    src/tools/LSP.cpp
+    src/tools/PackageManager.cpp
+    src/tools/REPL.cpp
+    src/tools/Formatter.cpp
+    src/tools/Linter.cpp
 )
 
-add_executable(vit ${SOURCES})
+add_executable(vit ${COMMON_SOURCES} src/main.cpp)
+add_executable(vit-lsp ${COMMON_SOURCES} src/lsp_main.cpp)
 
 if(MINGW)
     target_link_options(vit PRIVATE -static -static-libgcc -static-libstdc++)
+    target_link_options(vit-lsp PRIVATE -static -static-libgcc -static-libstdc++)
 endif()
+

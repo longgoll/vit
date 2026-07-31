@@ -1,0 +1,8 @@
+{
+  "name": "test-app",
+  "version": "1.0.0",
+  "description": "A new VIT project",
+  "main": "src/main.vit",
+  "dependencies": {
+    "github.com/user/vit-http": "latest",}
+}

@@ -6,6 +6,11 @@
 #include "parser/Parser.h"
 #include "semantics/SemanticAnalyzer.h"
 #include "semantics/Monomorphizer.h"
+#include "tools/LSP.h"
+#include "tools/PackageManager.h"
+#include "tools/REPL.h"
+#include "tools/Formatter.h"
+#include "tools/Linter.h"
 
 #include <algorithm>
 #include <fstream>
@@ -20,16 +25,23 @@
 
 using namespace vit;
 
-const std::string VIT_VERSION = "0.4.0 (Phase 4 - ARC & Modules)";
+const std::string VIT_VERSION = "1.3.0 (Phase 13 - Developer Experience & Ecosystem)";
 
 void printUsage(const char* progName) {
-    std::cout << "VIT Language Compiler v" << VIT_VERSION << "\n\n";
+    std::cout << "VIT Language Compiler & Ecosystem v" << VIT_VERSION << "\n\n";
     std::cout << "Usage:\n";
-    std::cout << "  vit <command> [file] [options]\n";
+    std::cout << "  vit <command> [file|project] [options]\n";
     std::cout << "  vit <file> [options]         (Shortcut for 'vit run <file>')\n\n";
     std::cout << "Commands:\n";
     std::cout << "  run <file>      Compile and execute a VIT source file immediately\n";
     std::cout << "  build <file>    Compile a VIT source file into a native executable (.exe)\n";
+    std::cout << "  init [name]     Initialize a new Vit project directory\n";
+    std::cout << "  add <package>   Add a package dependency to vit.json\n";
+    std::cout << "  install         Install project dependencies defined in vit.json\n";
+    std::cout << "  repl            Start interactive REPL shell\n";
+    std::cout << "  fmt [path]      Format VIT code file or directory\n";
+    std::cout << "  lint [path]     Lint VIT code file for warnings and code smells\n";
+    std::cout << "  lsp             Run Language Server Protocol (JSON-RPC) over stdin/stdout\n";
     std::cout << "  setup           Automatically add 'vit' directory to Windows User PATH\n";
     std::cout << "  version         Display compiler version info\n";
     std::cout << "  help            Show this help message\n\n";
@@ -40,10 +52,11 @@ void printUsage(const char* progName) {
     std::cout << "  --emit-llvm     Print LLVM IR intermediate representation to console\n";
     std::cout << "  -h, --help      Display this help message\n\n";
     std::cout << "Examples:\n";
-    std::cout << "  vit run main.vit\n";
-    std::cout << "  vit build main.vit -O2 -o output.exe\n";
-    std::cout << "  vit setup\n";
-    std::cout << "  vit main.vit\n";
+    std::cout << "  vit init my-app\n";
+    std::cout << "  vit add github.com/user/vit-http\n";
+    std::cout << "  vit repl\n";
+    std::cout << "  vit fmt src/main.vit\n";
+    std::cout << "  vit lint src/main.vit\n";
 }
 
 void printVersion() {
@@ -208,6 +221,39 @@ int main(int argc, char* argv[]) {
     bool customOutput = false;
 
     std::string firstArg = argv[1];
+
+    if (firstArg == "init") {
+        std::string projName = (argc >= 3) ? argv[2] : "vit-app";
+        return PackageManager::initProject(projName) ? 0 : 1;
+    } else if (firstArg == "add") {
+        if (argc < 3) {
+            std::cerr << "\033[31m[VIT Error]\033[0m Usage: vit add <package-url-or-name>\n";
+            return 1;
+        }
+        return PackageManager::addPackage(argv[2]) ? 0 : 1;
+    } else if (firstArg == "install") {
+        return PackageManager::installDependencies() ? 0 : 1;
+    } else if (firstArg == "repl") {
+        REPLEngine repl;
+        repl.run();
+        return 0;
+    } else if (firstArg == "fmt") {
+        std::string target = (argc >= 3) ? argv[2] : ".";
+        return Formatter::formatFile(target) ? 0 : 1;
+    } else if (firstArg == "lint") {
+        std::string target = (argc >= 3) ? argv[2] : "src/main.vit";
+        std::vector<LintWarning> warnings;
+        Linter::lintFile(target, warnings);
+        std::cout << "\033[36m[VIT Lint]\033[0m Scanned " << target << " - Found " << warnings.size() << " issue(s):\n";
+        for (const auto& w : warnings) {
+            std::cout << "  \033[33m[Warning][" << w.rule << "]\033[0m " << w.filePath << " -> " << w.message << "\n";
+        }
+        return 0;
+    } else if (firstArg == "lsp") {
+        LSPServer lsp;
+        lsp.run();
+        return 0;
+    }
 
     int startIndex = 1;
     if (firstArg == "run") {

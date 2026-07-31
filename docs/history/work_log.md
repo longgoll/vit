@@ -74,9 +74,28 @@ Tài liệu này ghi lại chi tiết toàn bộ các bước đã thực hiện
 
 ---
 
+## Giai đoạn: Phase 13 Developer Experience & Ecosystem (v1.3.0 Milestone - Hoàn thành)
+
+### Task: Hệ sinh thái công cụ hỗ trợ Lập trình viên (DX Tooling)
+* **Mục tiêu**: Xây dựng Language Server Protocol (`vit-lsp`), Package Manager (`vit pm`), Interactive REPL (`vit repl`), Formatter & Linter (`vit fmt`, `vit lint`).
+* **Các file đã tạo/chỉnh sửa**:
+  * `include/tools/LSP.h` & `src/tools/LSP.cpp`: Server JSON-RPC 2.0 cho Autocomplete, Hover, Go-to-definition, Diagnostics.
+  * `src/lsp_main.cpp`: Binary độc lập `vit-lsp.exe`.
+  * `include/tools/PackageManager.h` & `src/tools/PackageManager.cpp`: Lệnh `vit init`, `vit add`, `vit install` quản lý `vit.json`.
+  * `include/tools/REPL.h` & `src/tools/REPL.cpp`: Shell REPL tương tác `vit repl`.
+  * `include/tools/Formatter.h` & `src/tools/Formatter.cpp`: Định dạng mã nguồn `vit fmt`.
+  * `include/tools/Linter.h` & `src/tools/Linter.cpp`: Kiểm tra mùi mã và quy tắc đặt tên `vit lint`.
+  * `src/main.cpp`: Điều hướng subcommand CLI cho Phase 13.
+  * `CMakeLists.txt`: Cập nhật build targets `vit` và `vit-lsp`.
+  * `test/Phase13/run_phase13_tests.bat`: Bộ test tự động kiểm thử toàn bộ tính năng Phase 13.
+
+---
+
 ## Tổng kết Kiểm thử (Verification Log)
-1. **Biên dịch dự án C++**: Dự án biên dịch thành công 100% bằng CMake & MSVC C++20 sinh ra `vit.exe`.
+1. **Biên dịch dự án C++**: Dự án biên dịch thành công 100% bằng CMake & Ninja C++20 sinh ra `vit.exe` và `vit-lsp.exe`.
 2. **Chạy thử chương trình CLI mới**:
-   * Kiểm thử `vit help` và `vit version` hiển thị đúng giao diện.
-   * Kiểm thử `vit run examples/sample.jslik` và `vit build examples/sample.jslik` hoạt động mượt mà.
-   * Sinh cây AST và LLVM IR chuẩn xác với cờ `--emit-ast` và `--emit-llvm`.
+   * Kiểm thử `vit init`, `vit add`, `vit install` quản lý gói mượt mà.
+   * Kiểm thử `vit fmt` căn chỉnh lề và định dạng code chuẩn xác.
+   * Kiểm thử `vit lint` bắt lỗi đặt tên và unreachable code thành công.
+   * Kiểm thử `vit-lsp` giao tiếp JSON-RPC 2.0 và trả về kết quả diagnostic.
+

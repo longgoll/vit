@@ -1,0 +1,5 @@
+// VIT Project Starter
+function main(): number {
+    print("Hello from test-app!");
+    return 0;
+}
