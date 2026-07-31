@@ -22,7 +22,9 @@ static const std::unordered_map<std::string, TokenType> keywords = {
     {"string", TokenType::KwString},
     {"void", TokenType::KwVoid},
     {"struct", TokenType::KwStruct},
-    {"extern", TokenType::KwExtern}
+    {"extern", TokenType::KwExtern},
+    {"import", TokenType::KwImport},
+    {"from", TokenType::KwFrom}
 };
 
 Lexer::Lexer(std::string sourceCode) : source(std::move(sourceCode)) {}

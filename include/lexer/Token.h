@@ -26,6 +26,8 @@ enum class TokenType {
     KwVoid,     // void
     KwStruct,   // struct
     KwExtern,   // extern
+    KwImport,   // import
+    KwFrom,     // from
 
     // Identifiers & Literals
     Identifier,    // e.g. add, main, x, number
@@ -95,6 +97,8 @@ inline std::string_view tokenTypeToString(TokenType type) {
         case TokenType::KwVoid: return "void";
         case TokenType::KwStruct: return "struct";
         case TokenType::KwExtern: return "extern";
+        case TokenType::KwImport: return "import";
+        case TokenType::KwFrom: return "from";
         case TokenType::Identifier: return "Identifier";
         case TokenType::NumberLiteral: return "NumberLiteral";
         case TokenType::StringLiteral: return "StringLiteral";

@@ -107,6 +107,11 @@ void ASTPrinter::visit(StructDeclASTNode* node) {
     indentLevel--;
 }
 
+void ASTPrinter::visit(ImportASTNode* node) {
+    printIndent();
+    out << "[ImportASTNode] import from \"" << node->getModulePath() << "\"\n";
+}
+
 void ASTPrinter::visit(IfASTNode* node) {
     printIndent();
     out << "[IfASTNode]\n";

@@ -1,0 +1,17 @@
+// Test Phase 4: Module System & Standard Library
+
+import { sqrt, cos, pow } from "std/math";
+
+function main(): number {
+    print("=== Testing VIT Phase 4: Module Import & Stdlib ===");
+    
+    let sq: number = sqrt(16.0);
+    print("sqrt(16.0):");
+    print(sq);
+
+    let p: number = pow(2.0, 3.0);
+    print("pow(2.0, 3.0):");
+    print(p);
+
+    return 0;
+}

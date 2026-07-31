@@ -54,8 +54,14 @@ public:
                    std::vector<std::unique_ptr<StatementNode>> topStmts = {})
         : functions(std::move(funcs)), topLevelStatements(std::move(topStmts)) {}
 
+    std::vector<std::unique_ptr<FunctionDeclASTNode>>& getFunctions() {
+        return functions;
+    }
     const std::vector<std::unique_ptr<FunctionDeclASTNode>>& getFunctions() const {
         return functions;
+    }
+    std::vector<std::unique_ptr<StatementNode>>& getTopLevelStatements() {
+        return topLevelStatements;
     }
     const std::vector<std::unique_ptr<StatementNode>>& getTopLevelStatements() const {
         return topLevelStatements;

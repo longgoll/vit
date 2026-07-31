@@ -26,6 +26,7 @@ enum class NodeType {
     Return,
     Print,
     StructDecl,
+    ImportDecl,
     NumberLiteral,
     BooleanLiteral,
     StringLiteral,

@@ -108,6 +108,10 @@ void SemanticAnalyzer::visit(StructDeclASTNode* node) {
     structTable[node->getName()] = node->getFields();
 }
 
+void SemanticAnalyzer::visit(ImportASTNode* node) {
+    // Module importing resolved at parser/module pass level
+}
+
 void SemanticAnalyzer::visit(VarDeclASTNode* node) {
     std::string typeName = node->getTypeName();
 

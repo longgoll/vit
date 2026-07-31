@@ -85,14 +85,14 @@ const std::string& NativeCompiler::getClangPath() const {
     return clangExecutablePath;
 }
 
-bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const std::string& outputExePath) {
+bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const std::string& outputExePath, const std::string& optLevel) {
     if (!isClangAvailable()) {
         std::cerr << "\n[VIT Error] 'clang' compiler was not found on your system PATH or bundled toolchain.\n";
         std::cerr << "  Run '.\\scripts\\bundle_tools.ps1' or 'winget install LLVM.LLVM' to set it up.\n\n";
         return false;
     }
 
-    std::string cmd = clangExecutablePath + " \"" + irFilePath + "\" -o \"" + outputExePath + "\"";
+    std::string cmd = clangExecutablePath + " " + optLevel + " \"" + irFilePath + "\" -o \"" + outputExePath + "\"";
 
 #ifdef _WIN32
     // Run initial attempt quietly (suppress stderr/stdout) so fallback won't spam misleading clang errors
@@ -105,7 +105,7 @@ bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const 
             "C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\x86_64-w64-mingw32\\lib",
             "C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\lib\\gcc\\x86_64-w64-mingw32\\16.1.0"
         };
-        std::string fallbackCmd = clangExecutablePath + " -fuse-ld=lld --target=x86_64-w64-mingw32 -Wno-override-module";
+        std::string fallbackCmd = clangExecutablePath + " " + optLevel + " -fuse-ld=lld --target=x86_64-w64-mingw32 -Wno-override-module";
         for (const auto& libPath : minGwLibPaths) {
             fallbackCmd += " -L\"" + libPath + "\"";
         }

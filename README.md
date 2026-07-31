@@ -17,18 +17,19 @@
 * **Vòng lặp & Điều hướng**: `while`, `for`, `break`, `continue`.
 * **Mở rộng hệ thống kiểu**: `boolean` (`true`/`false`), `string` (`"..."`), `void`.
 * **Toán tử Logic Short-Circuit**: `&&`, `||`, `!`.
-* **Bộ Phân Tích Ngữ Nghĩa (Semantic Analyzer)**:
-  * Kiểm tra biến chưa khai báo (`Undeclared Variable`).
-  * Kiểm tra khai báo trùng tên (`Duplicate Declaration`).
-  * Ngăn chặn gán lại hằng số `const` (`Const Re-assignment`).
-  * Kiểm tra câu lệnh `break` / `continue` đúng phạm vi vòng lặp.
+* **Bộ Phân Tích Ngữ Nghĩa (Semantic Analyzer)**: Báo lỗi biến chưa khai báo, trùng tên, gán lại hằng `const`, sai vị trí `break`/`continue`.
 
 ### 🔹 Phase 3 — FFI, Struct, Mảng & Type Inference
 * **C Interop (FFI)**: Gọi trực tiếp các hàm từ C Runtime thông qua từ khóa `extern function`.
 * **Cấu trúc dữ liệu (`struct`)**: Định nghĩa kiểu phức hợp tùy chỉnh.
 * **Mảng dữ liệu (`Array`)**: Khởi tạo mảng `[...]` và truy xuất theo chỉ số `arr[i]`.
 * **Suy luận kiểu tự động (`Type Inference`)**: Tự động xác định kiểu dữ liệu của biến khai báo với `let`.
-* **Quản lý bộ nhớ Heap**: Tự động cấp phát bộ nhớ động bằng `malloc` cho Struct và Array.
+
+### 🔹 Phase 4 — ARC Memory Cleanup, Module System, Rich Diagnostics & Native Optimizations
+* **Tự Động Quản Lý Bộ Nhớ Scope (ARC Cleanup)**: Tự động phát sinh lệnh `@free(i8*)` giải phóng mảng/struct Heap khi thoát khỏi Scope mà không cần Garbage Collector giật lag.
+* **Hệ Thống Module (`import`) & Thư Viện Chuẩn**: Chia nhỏ dự án thành nhiều file `import { sqrt, cos } from "std/math";`. Tích hợp sẵn `std/math.vit`.
+* **Báo Lỗi Dạng Rust-Like (Rich Error Diagnostics)**: In dòng lỗi màu sắc ANSI, trích đoạn code thực tế và con trỏ `^` chỉ vị trí lỗi.
+* **Cờ Tối Ưu Hóa Native (`-O1`, `-O2`, `-O3`)**: Kích hoạt bộ tối ưu hóa LLVM/Clang cho file `.exe`.
 
 ---
 
@@ -38,14 +39,18 @@
 vit/
 ├── CMakeLists.txt         # Cấu hình biên dịch CMake (C++20)
 ├── README.md              # Tài liệu hướng dẫn dự án
+├── std/                   # Thư viện chuẩn VIT
+│   └── math.vit
 ├── include/               # Header files (.h)
 │   ├── ast/               # Cấu trúc Cây cú pháp trừu tượng (AST)
+│   ├── diagnostics/       # Bộ in báo lỗi Rust-like rich diagnostics
 │   ├── lexer/             # Bộ phân tích từ vựng (Lexer)
 │   ├── parser/            # Bộ phân tích cú pháp (Parser)
 │   ├── semantics/         # Bộ phân tích ngữ nghĩa (Semantic Analyzer)
 │   └── codegen/           # Bộ sinh mã LLVM IR & Native Compiler
 ├── src/                   # Source code C++ (.cpp)
 │   ├── ast/
+│   ├── diagnostics/
 │   ├── lexer/
 │   ├── parser/
 │   ├── semantics/
@@ -57,7 +62,8 @@ vit/
 ├── test/                  # Các file mã nguồn test (.vit) theo từng Phase
 │   ├── Phase-1/
 │   ├── Phase-2/
-│   └── Phase-3/
+│   ├── Phase-3/
+│   └── Phase-4/
 └── scripts/               # Script tiện ích & cấu hình môi trường
 ```
 
@@ -76,64 +82,51 @@ vit/
 
 ```bash
 # Tạo thư mục build và cấu hình CMake
-cmake -B build -S . -G "Ninja"
+cmake -B build -S .
 
 # Biên dịch chương trình
-cmake --build build
+cmake --build build --config Debug
 ```
-
-Sau khi hoàn thành, file thực thi `vit` (hoặc `vit.exe` trên Windows) sẽ nằm trong thư mục `build/`.
 
 ---
 
 ### 2️⃣ Chạy Thử Chương Trình VIT (`.vit`)
 
-Biên dịch và chạy trực tiếp file mã nguồn `.vit`:
-
 ```bash
-# Chạy file ví dụ Phase 3 (FFI & C Interop)
-./build/vit -run test/Phase-3/ffi.vit
+# 1. Chạy file ví dụ Phase 4 (Module Import & Stdlib)
+vit run test/Phase-4/test_import.vit
 
-# Chạy file ví dụ Struct
-./build/vit -run test/Phase-3/struct.vit
+# 2. Biên dịch Native tối ưu hóa với -O2
+vit build test/Phase-4/test_import.vit -O2 -o math_test.exe
 
-# Xem mã LLVM IR được sinh ra
-./build/vit --emit-llvm test/Phase-3/struct.vit
-
-# Xem Cây cú pháp trừu tượng AST
-./build/vit --emit-ast test/Phase-3/struct.vit
+# 3. Xem mã LLVM IR với tự động chèn free() của ARC
+vit run test/Phase-4/test_arc.vit --emit-llvm
 ```
 
 ---
 
 ## 💡 Ví Dụ Mã Nguồn VIT (`.vit`)
 
-### 1. FFI (Giao Tiếp Thư Viện C)
 ```javascript
-extern function sqrt(x: number): number;
+// Module Import & Standard Library
+import { sqrt, pow } from "std/math";
 
-function main(): number {
-    let val = sqrt(49.0);
-    print("C sqrt(49.0):");
-    print(val);
-    return 0;
-}
-```
-
-### 2. Struct & Mảng (Structs & Arrays)
-```javascript
 struct Point {
     x: number,
     y: number
 }
 
 function main(): number {
-    let p: Point;
-    p.x = 100;
-    p.y = 200;
+    print("=== VIT Language v0.4.0 ===");
 
-    let scores = [9.5, 8.0, 10.0];
-    print(scores[0]);
+    let p: Point;
+    p.x = 3.0;
+    p.y = 4.0;
+
+    let dist = sqrt(pow(p.x, 2.0) + pow(p.y, 2.0));
+    print("Distance from origin:");
+    print(dist); // In ra 5.000000
+
     return 0;
 }
 ```

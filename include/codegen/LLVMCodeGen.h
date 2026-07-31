@@ -42,12 +42,14 @@ private:
     bool blockHasTerminator = false;
 
     std::vector<LoopTarget> loopStack;
+    std::vector<std::vector<VarSymbol>> heapScopeStack;
     std::unordered_map<std::string, VarSymbol> symbolTable;
 
     std::string newReg();
     std::string newLabel(const std::string& prefix);
     std::string getLLVMType(const std::string& vitType);
     void emitIndent();
+    void cleanupCurrentScope();
 
 public:
     LLVMCodeGen() = default;
@@ -69,6 +71,7 @@ public:
     void visit(ReturnASTNode* node) override;
     void visit(PrintASTNode* node) override;
     void visit(StructDeclASTNode* node) override;
+    void visit(ImportASTNode* node) override;
     void visit(NumberLiteralASTNode* node) override;
     void visit(BooleanLiteralASTNode* node) override;
     void visit(StringLiteralASTNode* node) override;

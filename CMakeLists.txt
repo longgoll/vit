@@ -8,6 +8,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 set(SOURCES
     src/ast/ASTPrinter.cpp
+    src/diagnostics/DiagnosticPrinter.cpp
     src/lexer/Lexer.cpp
     src/parser/Parser.cpp
     src/semantics/SemanticAnalyzer.cpp

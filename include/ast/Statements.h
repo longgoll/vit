@@ -110,6 +110,23 @@ public:
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 
+// Node representing an import statement (e.g. import { sqrt, cos } from "math"; or import "math";)
+class ImportASTNode : public StatementNode {
+private:
+    std::vector<std::string> symbols;
+    std::string modulePath;
+
+public:
+    ImportASTNode(std::vector<std::string> importedSymbols, std::string path)
+        : symbols(std::move(importedSymbols)), modulePath(std::move(path)) {}
+
+    const std::vector<std::string>& getSymbols() const { return symbols; }
+    const std::string& getModulePath() const { return modulePath; }
+
+    NodeType getType() const override { return NodeType::ImportDecl; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
 // Node representing a block of statements (e.g. { stmt1; stmt2; })
 class BlockASTNode : public StatementNode {
 private:

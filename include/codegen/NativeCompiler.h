@@ -17,7 +17,7 @@ public:
     bool isClangAvailable() const;
     const std::string& getClangPath() const;
 
-    bool compileIRToExecutable(const std::string& irFilePath, const std::string& outputExePath);
+    bool compileIRToExecutable(const std::string& irFilePath, const std::string& outputExePath, const std::string& optLevel = "-O0");
     int runExecutable(const std::string& exePath);
 };
 

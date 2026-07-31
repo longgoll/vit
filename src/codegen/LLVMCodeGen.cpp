@@ -102,8 +102,32 @@ void LLVMCodeGen::visit(StructDeclASTNode* node) {
     globalDefsStream << " }\n";
 }
 
+void LLVMCodeGen::cleanupCurrentScope() {
+    if (heapScopeStack.empty()) return;
+    auto scopeVars = heapScopeStack.back();
+    heapScopeStack.pop_back();
+
+    for (const auto& var : scopeVars) {
+        std::string llvmType = getLLVMType(var.typeName);
+        std::string ptrReg = newReg();
+        emitIndent();
+        irStream << ptrReg << " = load " << llvmType << ", " << llvmType << "* " << var.addrReg << ", align 8\n";
+        
+        std::string i8Ptr = newReg();
+        emitIndent();
+        irStream << i8Ptr << " = bitcast " << llvmType << " " << ptrReg << " to i8*\n";
+        emitIndent();
+        irStream << "call void @free(i8* " << i8Ptr << ")\n";
+    }
+}
+
+void LLVMCodeGen::visit(ImportASTNode* node) {
+    // Module importing resolved at parser/module pass level
+}
+
 void LLVMCodeGen::visit(FunctionDeclASTNode* node) {
     symbolTable.clear();
+    heapScopeStack.clear();
     regCounter = 0;
     blockHasTerminator = false;
 
@@ -164,9 +188,11 @@ void LLVMCodeGen::visit(FunctionDeclASTNode* node) {
 }
 
 void LLVMCodeGen::visit(BlockASTNode* node) {
+    heapScopeStack.push_back({});
     for (const auto& stmt : node->getStatements()) {
         stmt->accept(this);
     }
+    cleanupCurrentScope();
 }
 
 void LLVMCodeGen::visit(VarDeclASTNode* node) {
@@ -188,6 +214,10 @@ void LLVMCodeGen::visit(VarDeclASTNode* node) {
     emitIndent();
     irStream << addrReg << " = alloca " << llvmType << ", align 8\n";
     symbolTable[node->getName()] = {addrReg, typeName};
+
+    if (!heapScopeStack.empty() && typeName.size() > 2 && typeName.substr(typeName.size() - 2) == "[]") {
+        heapScopeStack.back().push_back({addrReg, typeName});
+    }
 
     if (auto it = structs.find(typeName); it != structs.end()) {
         // Allocate struct memory on stack

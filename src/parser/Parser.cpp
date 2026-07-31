@@ -48,6 +48,8 @@ std::unique_ptr<ProgramASTNode> Parser::parseProgram() {
             functions.push_back(parseFunctionDecl(false));
         } else if (check(TokenType::KwStruct)) {
             topLevelStatements.push_back(parseStructDecl());
+        } else if (check(TokenType::KwImport)) {
+            topLevelStatements.push_back(parseImportDecl());
         } else {
             topLevelStatements.push_back(parseStatement());
         }
@@ -160,7 +162,31 @@ std::unique_ptr<BlockASTNode> Parser::parseBlock() {
     return std::make_unique<BlockASTNode>(std::move(statements));
 }
 
+std::unique_ptr<ImportASTNode> Parser::parseImportDecl() {
+    consume(TokenType::KwImport, "Expected 'import' keyword.");
+    std::vector<std::string> symbols;
+
+    if (match(TokenType::LBrace)) {
+        if (!check(TokenType::RBrace)) {
+            do {
+                Token sym = consume(TokenType::Identifier, "Expected imported symbol name.");
+                symbols.push_back(sym.lexeme);
+            } while (match(TokenType::Comma));
+        }
+        consume(TokenType::RBrace, "Expected '}' after imported symbol list.");
+        consume(TokenType::KwFrom, "Expected 'from' keyword after import symbol list.");
+    }
+
+    Token pathTok = consume(TokenType::StringLiteral, "Expected module path string literal.");
+    match(TokenType::Semicolon); // Optional semicolon
+
+    return std::make_unique<ImportASTNode>(std::move(symbols), pathTok.lexeme);
+}
+
 std::unique_ptr<StatementNode> Parser::parseStatement() {
+    if (check(TokenType::KwImport)) {
+        return parseImportDecl();
+    }
     if (check(TokenType::KwStruct)) {
         return parseStructDecl();
     }

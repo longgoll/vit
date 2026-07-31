@@ -32,6 +32,7 @@ private:
     // Grammars
     std::unique_ptr<FunctionDeclASTNode> parseFunctionDecl(bool isExtern = false);
     std::unique_ptr<StructDeclASTNode> parseStructDecl();
+    std::unique_ptr<ImportASTNode> parseImportDecl();
     std::vector<Parameter> parseParameterList();
     std::unique_ptr<BlockASTNode> parseBlock();
     std::unique_ptr<StatementNode> parseStatement();

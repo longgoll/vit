@@ -1,0 +1,10 @@
+// VIT Standard Library: Math Module (std/math.vit)
+
+extern function sqrt(x: number): number;
+extern function cos(x: number): number;
+extern function sin(x: number): number;
+extern function tan(x: number): number;
+extern function abs(x: number): number;
+extern function pow(x: number, y: number): number;
+extern function floor(x: number): number;
+extern function ceil(x: number): number;

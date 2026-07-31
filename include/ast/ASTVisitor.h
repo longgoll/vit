@@ -19,6 +19,7 @@ class ContinueASTNode;
 class ReturnASTNode;
 class PrintASTNode;
 class StructDeclASTNode;
+class ImportASTNode;
 class NumberLiteralASTNode;
 class BooleanLiteralASTNode;
 class StringLiteralASTNode;
@@ -49,6 +50,7 @@ public:
     virtual void visit(ReturnASTNode* node) = 0;
     virtual void visit(PrintASTNode* node) = 0;
     virtual void visit(StructDeclASTNode* node) = 0;
+    virtual void visit(ImportASTNode* node) = 0;
     virtual void visit(NumberLiteralASTNode* node) = 0;
     virtual void visit(BooleanLiteralASTNode* node) = 0;
     virtual void visit(StringLiteralASTNode* node) = 0;

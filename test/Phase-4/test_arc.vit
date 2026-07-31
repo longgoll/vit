@@ -1,0 +1,14 @@
+// Test Phase 4: ARC Scope Memory Cleanup
+
+function main(): number {
+    print("=== Testing ARC Heap Scope Cleanup ===");
+    
+    let i: number = 0;
+    while (i < 3) {
+        let arr: number[] = [10, 20, 30];
+        print(arr[0]);
+        i = i + 1;
+    }
+    
+    return 0;
+}

@@ -1,9 +1,11 @@
 #include "ast/ASTPrinter.h"
 #include "codegen/LLVMCodeGen.h"
 #include "codegen/NativeCompiler.h"
+#include "diagnostics/DiagnosticPrinter.h"
 #include "lexer/Lexer.h"
 #include "parser/Parser.h"
 #include "semantics/SemanticAnalyzer.h"
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -16,7 +18,7 @@
 
 using namespace vit;
 
-const std::string VIT_VERSION = "0.3.0 (Phase 3)";
+const std::string VIT_VERSION = "0.4.0 (Phase 4 - ARC & Modules)";
 
 void printUsage(const char* progName) {
     std::cout << "VIT Language Compiler v" << VIT_VERSION << "\n\n";
@@ -31,12 +33,13 @@ void printUsage(const char* progName) {
     std::cout << "  help            Show this help message\n\n";
     std::cout << "Options:\n";
     std::cout << "  -o <output.exe> Specify output executable file path\n";
+    std::cout << "  -O0, -O1, -O2   Native compiler optimization levels\n";
     std::cout << "  --emit-ast      Print Abstract Syntax Tree (AST) to console\n";
     std::cout << "  --emit-llvm     Print LLVM IR intermediate representation to console\n";
     std::cout << "  -h, --help      Display this help message\n\n";
     std::cout << "Examples:\n";
     std::cout << "  vit run main.vit\n";
-    std::cout << "  vit build main.vit -o output.exe\n";
+    std::cout << "  vit build main.vit -O2 -o output.exe\n";
     std::cout << "  vit setup\n";
     std::cout << "  vit main.vit\n";
 }
@@ -104,6 +107,61 @@ void setupPath() {
     std::cout << "[VIT Setup] Automatic setup is supported on Windows.\n";
 }
 
+static void resolveImports(ProgramASTNode* program, const std::string& currentFilePath, std::vector<std::string>& visitedFiles) {
+    std::vector<std::unique_ptr<StatementNode>> remainingStmts;
+    for (auto& stmt : program->getTopLevelStatements()) {
+        if (stmt->getType() == NodeType::ImportDecl) {
+            auto importNode = static_cast<ImportASTNode*>(stmt.get());
+            std::string modPath = importNode->getModulePath();
+
+            std::vector<std::string> candidates = {
+                modPath,
+                modPath + ".vit",
+                "./" + modPath,
+                "./" + modPath + ".vit"
+            };
+
+            std::string resolvedPath = "";
+            for (const auto& cand : candidates) {
+                std::ifstream f(cand);
+                if (f.good()) {
+                    resolvedPath = cand;
+                    break;
+                }
+            }
+
+            if (resolvedPath.empty()) {
+                throw ParseError("Could not resolve imported module '" + modPath + "'", 1, 1);
+            }
+
+            if (std::find(visitedFiles.begin(), visitedFiles.end(), resolvedPath) != visitedFiles.end()) {
+                continue; // Skip duplicate import
+            }
+            visitedFiles.push_back(resolvedPath);
+
+            std::ifstream modFile(resolvedPath);
+            std::stringstream modBuf;
+            modBuf << modFile.rdbuf();
+
+            Lexer modLexer(modBuf.str());
+            Parser modParser(std::move(modLexer));
+            auto modAST = modParser.parseProgram();
+
+            resolveImports(modAST.get(), resolvedPath, visitedFiles);
+
+            for (auto& func : modAST->getFunctions()) {
+                program->getFunctions().push_back(std::move(func));
+            }
+            for (auto& topStmt : modAST->getTopLevelStatements()) {
+                remainingStmts.push_back(std::move(topStmt));
+            }
+        } else {
+            remainingStmts.push_back(std::move(stmt));
+        }
+    }
+    program->getTopLevelStatements() = std::move(remainingStmts);
+}
+
 enum class Mode {
     RUN,
     BUILD,
@@ -142,6 +200,7 @@ int main(int argc, char* argv[]) {
     std::string sourceFilePath;
     std::string outputExePath;
     std::string irFilePath = "output.ll";
+    std::string optLevel = "-O0";
     bool emitAST = false;
     bool emitLLVM = false;
     bool customOutput = false;
@@ -175,6 +234,8 @@ int main(int argc, char* argv[]) {
         } else if (arg == "-o" && i + 1 < argc) {
             outputExePath = argv[++i];
             customOutput = true;
+        } else if (arg == "-O0" || arg == "-O1" || arg == "-O2" || arg == "-O3") {
+            optLevel = arg;
         } else if (arg == "--emit-ast") {
             emitAST = true;
         } else if (arg == "--emit-llvm") {
@@ -222,6 +283,10 @@ int main(int argc, char* argv[]) {
         Parser parser(std::move(lexer));
         auto programAST = parser.parseProgram();
 
+        // Resolve imports
+        std::vector<std::string> visitedFiles = { sourceFilePath };
+        resolveImports(programAST.get(), sourceFilePath, visitedFiles);
+
         if (emitAST) {
             std::cout << "\n--- Abstract Syntax Tree (AST) ---\n";
             ASTPrinter printer(std::cout);
@@ -235,7 +300,7 @@ int main(int argc, char* argv[]) {
             std::cerr << "\n\033[31m[Semantic Error]\033[0m Found "
                       << semanticAnalyzer.getErrors().size() << " error(s):\n";
             for (const auto& err : semanticAnalyzer.getErrors()) {
-                std::cerr << "  - " << err << "\n";
+                DiagnosticPrinter::printError("Semantic Error", err, sourceFilePath, sourceCode, 0, 0);
             }
             return 1;
         }
@@ -259,14 +324,14 @@ int main(int argc, char* argv[]) {
 
         // 3. Native Binary Compilation
         NativeCompiler nativeCompiler;
-        bool compileSuccess = nativeCompiler.compileIRToExecutable(irFilePath, outputExePath);
+        bool compileSuccess = nativeCompiler.compileIRToExecutable(irFilePath, outputExePath, optLevel);
 
         if (!compileSuccess) {
             return 1;
         }
 
         if (mode == Mode::BUILD) {
-            std::cout << "\033[32m✓\033[0m Built \033[1m" << outputExePath << "\033[0m successfully.\n";
+            std::cout << "\033[32m✓\033[0m Built \033[1m" << outputExePath << "\033[0m successfully (" << optLevel << ").\n";
         }
 
         // 4. If mode is RUN (or `vit run`), execute binary immediately
@@ -276,10 +341,10 @@ int main(int argc, char* argv[]) {
         }
 
     } catch (const ParseError& e) {
-        std::cerr << "\n\033[31m[Parse Error]\033[0m " << e.what() << "\n";
+        DiagnosticPrinter::printError("Parse Error", e.what(), sourceFilePath, sourceCode, e.line, e.column);
         return 1;
     } catch (const std::exception& e) {
-        std::cerr << "\n\033[31m[Error]\033[0m " << e.what() << "\n";
+        DiagnosticPrinter::printError("Error", e.what(), sourceFilePath, sourceCode, 0, 0);
         return 1;
     }
 

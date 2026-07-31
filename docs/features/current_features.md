@@ -1,42 +1,45 @@
-# Tổng Quan Chức Năng Đang Có (Current Features & Architecture)
+# Tổng Quan Chức Năng Đang Có (Current Features & Architecture v0.4.0)
 
-Tài liệu này dành cho lập trình viên mới bắt tay vào codebase của dự án **VIT Compiler**. Tài liệu mô tả các tính năng ngôn ngữ đã hỗ trợ, kiến trúc codebase, cấu trúc thư mục, và hướng dẫn tiếp tục phát triển.
+Tài liệu này dành cho lập trình viên làm việc trên codebase của dự án **VIT Compiler (v0.4.0)**. Tài liệu mô tả các tính năng ngôn ngữ đã hỗ trợ, kiến trúc codebase, cấu trúc thư mục, và hướng dẫn biên dịch/sử dụng.
 
 ---
 
 ## 1. Các Chức Năng Ngôn Ngữ Hiện Có (Supported Features)
 
 ### 1.1. Kiểu dữ liệu & Biến
-* **Primitive Type**: `number` (biểu diễn dưới dạng 64-bit float IEEE 754 `double` trong LLVM IR).
-* **Khai báo biến**:
-  * `let x = 10;`
-  * `const y = 20;`
-  * Khai báo có chỉ định kiểu: `let result: number = 0;`
-* **Phép gán**: `x = y + 5;`
+* **Primitive Types**: `number` (float64 IEEE 754 `double`), `boolean` (`true`/`false`), `string`, `void`.
+* **Composite Types**:
+  * **Mảng dữ liệu (`Array`)**: `let arr: number[] = [10, 20, 30];`
+  * **Cấu trúc dữ liệu (`struct`)**: `struct Point { x: number, y: number }`
+* **Khai báo biến & Suy luận kiểu (`Type Inference`)**:
+  * `let x = 10;` (Tự suy luận kiểu `number`)
+  * `let name = "VIT";` (Tự suy luận kiểu `string`)
+  * `const MAX = 100;`
+* **Phép gán**: `x = y + 5;`, `p.x = 10;`, `arr[0] = 99;`
 
 ### 1.2. Biểu thức & Toán tử
-* **Toán tử số học**: `+` (cộng), `-` (trừ), `*` (nhân), `/` (chia).
+* **Toán tử số học**: `+`, `-`, `*`, `/`.
 * **Toán tử so sánh**: `==`, `!=`, `<`, `>`, `<=`, `>=`.
-* **Độ ưu tiên toán tử**: Đã hỗ trợ ưu tiên toán tử chuẩn (nhân chia trước, cộng trừ sau, nhóm ngoặc `(...)`).
+* **Toán tử logic**: `&&`, `||`, `!`.
+* **Độ ưu tiên toán tử**: Đã hỗ trợ ưu tiên toán tử chuẩn (Precedence Climbing).
 
 ### 1.3. Câu lệnh điều khiển (Control Flow)
 * **Khối lệnh (Block)**: `{ stmt1; stmt2; }`
-* **Câu điều kiện `if/else`**:
-  ```javascript
-  if (total > 100) {
-      print(total);
-  } else {
-      print(0);
-  }
-  ```
+* **Câu điều kiện `if/else`**: `if (cond) { ... } else { ... }`
+* **Vòng lặp `while` & `for`**: `while (cond) { ... }`, `for (init; cond; update) { ... }`
+* **Lệnh rẽ nhánh**: `break;`, `continue;`
 
-### 1.4. Hàm (Functions)
-* **Định nghĩa hàm**: `function name(param1: type, param2: type): returnType { ... }`
-* **Gọi hàm**: `let res = add(x, y);`
-* **Trả về giá trị**: `return expr;` hoặc `return;`
+### 1.4. Hàm, C Interop & Module System
+* **Định nghĩa hàm**: `function add(a: number, b: number): number { return a + b; }`
+* **Giao tiếp C FFI**: `extern function sqrt(x: number): number;`
+* **Hệ thống Module (`import`)**: `import { sqrt, cos } from "std/math";` hoặc `import "std/math";`
+* **Thư viện chuẩn**: Integrated Standard Library `std/math.vit`.
 
-### 1.5. I/O Tích hợp
-* **Hàm in giá trị**: `print(expr);` (tự động link tới `printf` của C Runtime).
+### 1.5. Tự Động Quản Lý Bộ Nhớ (ARC Scope Memory Cleanup)
+* Tự động giải phóng các vùng nhớ Heap (`malloc` mảng/struct) thông qua lệnh `call void @free(i8*)` khi biến thoát khỏi scope.
+
+### 1.6. Báo Lỗi Trực Quan (Rust-Like Diagnostics)
+* In thông báo lỗi với ANSI Color, trích đoạn code thực tế, chỉ số dòng/cột và con trỏ `^` đánh dấu vị trí lỗi.
 
 ---
 
@@ -50,39 +53,37 @@ vit/
 │   └── cay.md
 ├── docs/                       # Tài liệu dự án
 │   ├── history/
-│   │   └── work_log.md         # Lịch sử các việc đã làm
+│   │   ├── work_log.md         # Phase 1 log
+│   │   ├── phase2_work_log.md  # Phase 2 log
+│   │   ├── phase3_work_log.md  # Phase 3 log
+│   │   └── phase4_work_log.md  # Phase 4 log
 │   └── features/
-│       └── current_features.md # [File này] Chi tiết chức năng hiện có
+│       ├── current_features.md # [File này]
+│       ├── phase2_features.md
+│       ├── phase3_features.md
+│       └── phase4_features.md
+├── std/                        # Thư viện chuẩn VIT
+│   └── math.vit
 ├── include/                    # Header files (.h)
 │   ├── ast/                    # Định nghĩa Cây cú pháp AST & Visitor
-│   │   ├── AST.h
-│   │   ├── ASTNode.h
-│   │   ├── ASTPrinter.h
-│   │   ├── ASTVisitor.h
-│   │   ├── Expressions.h
-│   │   ├── Functions.h
-│   │   └── Statements.h
+│   ├── diagnostics/            # Bộ báo lỗi Rust-like rich diagnostics
 │   ├── lexer/                  # Bộ phân tích từ vựng (Lexer & Token)
-│   │   ├── Lexer.h
-│   │   └── Token.h
 │   ├── parser/                 # Bộ phân tích cú pháp (Parser)
-│   │   └── Parser.h
-│   └── codegen/                # Bộ phát sinh mã LLVM IR & Compiler Native
-│       ├── LLVMCodeGen.h
-│       └── NativeCompiler.h
+│   ├── semantics/              # Bộ phân tích ngữ nghĩa (Semantic Analyzer)
+│   └── codegen/                # Bộ sinh mã LLVM IR & Native Compiler
 ├── src/                        # Implementation files (.cpp)
 │   ├── ast/
-│   │   └── ASTPrinter.cpp
+│   ├── diagnostics/
 │   ├── lexer/
-│   │   └── Lexer.cpp
 │   ├── parser/
-│   │   └── Parser.cpp
+│   ├── semantics/
 │   ├── codegen/
-│   │   ├── LLVMCodeGen.cpp
-│   │   └── NativeCompiler.cpp
 │   └── main.cpp                # CLI entry point
-└── examples/                   # File mã nguồn mẫu kiểm thử (.jslik)
-    └── sample.jslik
+└── test/                       # Bộ kiểm thử theo từng phase
+    ├── Phase-1/
+    ├── Phase-2/
+    ├── Phase-3/
+    └── Phase-4/
 ```
 
 ---
@@ -95,41 +96,17 @@ cmake -B build -S .
 cmake --build build --config Debug
 ```
 
-### Sử dụng Trình biên dịch `vit` (Cú pháp chuẩn Golang/Rust):
+### Sử dụng Trình biên dịch `vit`:
 ```cmd
 # 1. Chạy trực tiếp file code (Biên dịch + Chạy ngay)
 vit run main.vit
 
-# 2. Biên dịch ra file thực thi .exe
-vit build main.vit -o output.exe
+# 2. Biên dịch ra file thực thi .exe với bộ tối ưu hóa -O2
+vit build main.vit -O2 -o output.exe
 
-# 3. Cú pháp viết tắt (tự động run)
-vit main.vit
-
-# 4. In cây cú pháp AST & mã LLVM IR khi biên dịch
+# 3. In cây cú pháp AST & mã LLVM IR khi biên dịch
 vit run main.vit --emit-ast --emit-llvm
 
-# 5. Thêm vit vào PATH để dùng ở bất cứ đâu trên máy:
-.\scripts\setup_path.ps1
-
-# 6. Tự động đóng gói bộ Toolchain Clang Portable đi kèm (Giải pháp Zero Dependency):
-.\scripts\bundle_tools.ps1
+# 4. Thêm vit vào PATH để dùng ở bất cứ đâu trên máy:
+vit setup
 ```
-
----
-
-## 4. Lộ Trình Phát Triển Tiếp Theo (Roadmap cho Developer tương lai)
-
-Nếu bạn là lập trình viên tiếp theo phát triển dự án này, dưới đây là các tính năng được đề xuất cho **Phase 2**:
-
-1. **Kiểu dữ liệu mở rộng**:
-   * Thêm kiểu `string` (chuỗi ký tự).
-   * Thêm kiểu `boolean` (`true`/`false`).
-   * Thêm kiểu `array` / `vector`.
-2. **Cấu trúc điều khiển nâng cao**:
-   * Vòng lặp `while (cond) { ... }`
-   * Vòng lặp `for (let i = 0; i < n; i = i + 1) { ... }`
-3. **Quản lý bộ nhớ tự động**:
-   * Triển khai bộ quản lý bộ nhớ ARC (Automatic Reference Counting - giống Swift) để tự động giải phóng vùng nhớ heap khi biến thoát khỏi scope.
-4. **Phân tích ngữ nghĩa nâng cao (Semantic Analyzer Pass)**:
-   * Kiểm tra ép kiểu ngầm định / cảnh báo mismatched types trước khi qua giai đoạn CodeGen.
