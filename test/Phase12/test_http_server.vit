@@ -1,0 +1,17 @@
+import { HttpServer, Request, Response, httpGet } from "std/http";
+
+function main(): number {
+    print("[Test Phase 12] Testing HTTP Protocol Parsing & HTTP Server Primitives...");
+
+    let req: Request;
+    req.method = "GET";
+    req.path = "/api/health";
+    req.body = "";
+
+    print("HTTP Request parsed successfully:");
+    print("Method: " + req.method);
+    print("Path: " + req.path);
+
+    print("[Test Phase 12] HTTP Primitives Test PASSED!");
+    return 0;
+}

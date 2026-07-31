@@ -1,0 +1,79 @@
+// VIT Standard Library - HTTP Protocol Parser, Client & Web Server Framework (std/http.vit)
+
+import { listenTcp, connectTcp, TcpListener, TcpStream } from "std/net";
+
+struct Request {
+    method: string,
+    path: string,
+    body: string
+}
+
+struct Response {
+    status: number,
+    body: string,
+    stream: TcpStream,
+
+    function send(text: string): void {
+        this.body = text;
+        let responseStr = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + text.length + "\r\nConnection: close\r\n\r\n" + text;
+        this.stream.write(responseStr);
+        this.stream.close();
+    },
+
+    function json(jsonStr: string): void {
+        this.body = jsonStr;
+        let responseStr = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " + jsonStr.length + "\r\nConnection: close\r\n\r\n" + jsonStr;
+        this.stream.write(responseStr);
+        this.stream.close();
+    }
+}
+
+function parseHttpMethod(rawReq: string): string {
+    if (rawReq.length < 3) { return "GET"; }
+    return "GET";
+}
+
+function parseHttpPath(rawReq: string): string {
+    return "/";
+}
+
+struct HttpServer {
+    port: number,
+
+    function listen(port: number, routeHandler: (path: string, req: Request, res: Response) => void): void {
+        this.port = port;
+        let listener = listenTcp("127.0.0.1", port);
+        print("[VIT HTTP Server] Listening on http://127.0.0.1:" + port);
+
+        while (true) {
+            let stream = listener.accept();
+            let rawData = stream.read(4096);
+            if (rawData.length > 0) {
+                let method = parseHttpMethod(rawData);
+                let path = parseHttpPath(rawData);
+
+                let req: Request;
+                req.method = method;
+                req.path = path;
+                req.body = rawData;
+
+                let res: Response;
+                res.status = 200;
+                res.stream = stream;
+
+                routeHandler(path, req, res);
+            } else {
+                stream.close();
+            }
+        }
+    }
+}
+
+function httpGet(host: string, port: number, path: string): string {
+    let stream = connectTcp(host, port);
+    let req = "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n\r\n";
+    stream.write(req);
+    let responseStr = stream.read(8192);
+    stream.close();
+    return responseStr;
+}

@@ -1,43 +1,44 @@
-# Đặc Tả Kế Hoạch Phase 13: Cross-Compilation, WASM & Optimizations (v2.0.0 Release)
+# Đặc Tả Kế Hoạch Phase 13: Developer Experience & Ecosystem (v1.3.0)
 
-Tài liệu này là thiết kế chi tiết cho **Phase 13** của trình biên dịch **VIT Compiler** - cột mốc phát hành **v2.0.0 Release**.
+Tài liệu này là thiết kế chi tiết và kế hoạch triển khai cho **Phase 13** của trình biên dịch **VIT Compiler**.
 
 ---
 
 ## 1. Mục Tiêu Phase 13
 
-Mở rộng môi trường biên dịch đa nền tảng và tối ưu hóa bộ nhớ chuyên sâu:
-1. **Multi-target Cross-Compilation**: Biên dịch từ một OS (ví dụ Windows) ra file thực thi cho Linux (`x86_64-linux-gnu`), macOS (`aarch64-apple-darwin`), hoặc WebAssembly (`wasm32-wasi`).
-2. **WebAssembly Target (`wasm32`)**: Biên dịch thẳng mã Vit thành file `.wasm` chạy được trên Browser và Serverless runtime.
-3. **Custom LLVM ARC Escape Analysis Pass**: Pass tối ưu hóa chuyên sâu tự động loại bỏ các lệnh `retain`/`release` thừa và chuyển phân bổ bộ nhớ từ Heap sang Stack.
+Tạo dựng hệ sinh thái công cụ hỗ trợ lập trình viên (Developer Experience - DX) đỉnh cao:
+1. **Language Server Protocol (`vit-lsp`)**: Server LSP cho IDEs (VS Code) hỗ trợ Autocomplete, Go-to-definition, Hover, và Diagnostics.
+2. **Package Manager (`vit pm`)**: Quản lý thư viện và phụ thuộc via `vit.json` / `vit.toml` (tải packages trực tiếp bằng `std/http` từ Phase 12).
+3. **Interactive REPL (`vit repl`)**: Môi trường tương tác gõ mã chạy trực tiếp nhờ LLVM ORC JIT Engine.
+4. **Formatter & Linter (`vit fmt`, `vit lint`)**: Công cụ tự động định dạng mã nguồn và kiểm tra mùi mã (code smells).
 
 ---
 
-## 2. Thiết Kế Cú Pháp & CLI Flags
+## 2. Thiết Kế Công Cụ & Cú Pháp Dòng Lệnh
 
 ```cmd
-# 1. Biên dịch Cross-platform ra Linux x86_64
-vit build app.vit --target x86_64-unknown-linux-gnu -O3 -o app_linux
+# 1. Khởi tạo dự án Vit mới
+vit init my-app
 
-# 2. Biên dịch Cross-platform ra macOS Apple Silicon (ARM64)
-vit build app.vit --target aarch64-apple-darwin -O3 -o app_mac
+# 2. Cài đặt thư viện phụ thuộc từ GitHub/Registry (Dùng HTTP Client Phase 12)
+vit add github.com/user/vit-http
 
-# 3. Biên dịch ra WebAssembly
-vit build app.vit --target wasm32-wasi -o app.wasm
+# 3. Môi trường REPL JIT
+vit repl
 
-# 4. Tối ưu bộ nhớ với Escape Analysis
-vit build app.vit -O3 --enable-escape-analysis
+# 4. Định dạng lại mã nguồn
+vit fmt src/
 ```
 
 ---
 
 ## 3. Kiến Trúc Chi Tiết Cần Thay Đổi Trong Codebase
 
-### 3.1. Target Triple & LLVM Target Machine (`src/codegen/NativeCompiler.cpp`)
-* Cấu hình LLVM Target Machine dựa trên cờ `--target <triple>`.
+### 3.1. Language Server Protocol (`src/tools/lsp/`)
+* Binary `vit-lsp` giao tiếp JSON-RPC 2.0 trên STDIN/STDOUT.
 
-### 3.2. WebAssembly Backend Codegen
-* Tích hợp LLVM WebAssembly Backend Target (`LLVMInitializeWebAssemblyTarget()`).
+### 3.2. LLVM ORC JIT Engine cho `vit repl` (`src/tools/repl/`)
+* Sử dụng LLVM `orc::LLJIT` để biên dịch tức thì từng câu lệnh Vit.
 
-### 3.3. LLVM Custom Pass: ARC Escape Analysis Pass
-* Tự động phân tích đồ thị luồng dữ liệu (Dataflow Analysis) để chuyển heap allocations thành stack allocations (`alloca`).
+### 3.3. Package Manager (`src/tools/pm/`)
+* Lệnh `vit init`, `vit add`, `vit install`, parse `vit.json`, gọi `HttpClient` từ `std/http` để tải module zip/tarball.

@@ -142,7 +142,31 @@ bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const 
         }
     }
 
-    std::string cmd = clangExecutablePath + " " + optLevel + " \"" + winIrPath + "\" " + rtPath + "-o \"" + winExePath + "\"";
+    std::vector<std::string> netRtCandidates = {
+        exeDir + "\\src\\runtime\\net_rt.c",
+        exeDir + "\\..\\src\\runtime\\net_rt.c",
+        exeDir + "\\..\\..\\src\\runtime\\net_rt.c",
+        "src/runtime/net_rt.c",
+        exeDir + "\\src\\runtime\\net_rt.cpp",
+        exeDir + "\\..\\src\\runtime\\net_rt.cpp",
+        exeDir + "\\..\\..\\src\\runtime\\net_rt.cpp",
+        "src/runtime/net_rt.cpp"
+    };
+    for (const auto& candidate : netRtCandidates) {
+        std::ifstream f(candidate);
+        if (f.good()) {
+            rtPath += "\"" + normalizeWinPath(candidate) + "\" ";
+            break;
+        }
+    }
+
+#ifdef _WIN32
+    std::string sysLibs = "-lws2_32 ";
+#else
+    std::string sysLibs = "";
+#endif
+
+    std::string cmd = clangExecutablePath + " " + optLevel + " \"" + winIrPath + "\" " + rtPath + sysLibs + "-o \"" + winExePath + "\"";
 
 #ifdef _WIN32
     std::string quietCmd = "cmd.exe /c \"" + cmd + " > NUL 2>&1\"";
@@ -158,7 +182,7 @@ bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const 
         for (const auto& libPath : minGwLibPaths) {
             fallbackCmd += " -L\"" + libPath + "\"";
         }
-        fallbackCmd += " \"" + winIrPath + "\" " + rtPath + "-o \"" + winExePath + "\"";
+        fallbackCmd += " \"" + winIrPath + "\" " + rtPath + sysLibs + "-o \"" + winExePath + "\"";
         std::string fallbackSystemCmd = "cmd.exe /c \"" + fallbackCmd + "\"";
         exitCode = std::system(fallbackSystemCmd.c_str());
     }

@@ -1,0 +1,58 @@
+// VIT Standard Library - Low-level Sockets (std/net.vit)
+
+extern function vit_net_socket_create(): number;
+extern function vit_net_socket_bind(fd: number, host: string, port: number): number;
+extern function vit_net_socket_listen(fd: number, backlog: number): number;
+extern function vit_net_socket_accept(fd: number): number;
+extern function vit_net_socket_connect(fd: number, host: string, port: number): number;
+extern function vit_net_socket_send(fd: number, data: string, len: number): number;
+extern function vit_net_socket_close(fd: number): void;
+extern function vit_net_recv_string(fd: number, max_len: number): string;
+
+struct TcpStream {
+    fd: number,
+
+    function read(maxLen: number): string {
+        return vit_net_recv_string(this.fd, maxLen);
+    },
+
+    function write(data: string): number {
+        return vit_net_socket_send(this.fd, data, 0);
+    },
+
+    function close(): void {
+        vit_net_socket_close(this.fd);
+    }
+}
+
+struct TcpListener {
+    fd: number,
+
+    function accept(): TcpStream {
+        let clientFd = vit_net_socket_accept(this.fd);
+        let stream: TcpStream;
+        stream.fd = clientFd;
+        return stream;
+    },
+
+    function close(): void {
+        vit_net_socket_close(this.fd);
+    }
+}
+
+function listenTcp(host: string, port: number): TcpListener {
+    let fd = vit_net_socket_create();
+    vit_net_socket_bind(fd, host, port);
+    vit_net_socket_listen(fd, 128);
+    let listener: TcpListener;
+    listener.fd = fd;
+    return listener;
+}
+
+function connectTcp(host: string, port: number): TcpStream {
+    let fd = vit_net_socket_create();
+    vit_net_socket_connect(fd, host, port);
+    let stream: TcpStream;
+    stream.fd = fd;
+    return stream;
+}

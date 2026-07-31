@@ -1,0 +1,26 @@
+import { listenTcp, connectTcp, TcpListener, TcpStream } from "std/net";
+
+function main(): number {
+    print("[Test Phase 12] Initializing TCP Socket Test...");
+
+    let listener = listenTcp("127.0.0.1", 9090);
+    print("TCP Listener created on port 9090");
+
+    let clientStream = connectTcp("127.0.0.1", 9090);
+    let serverStream = listener.accept();
+
+    clientStream.write("Hello from Vit TCP Client!");
+    let msg = serverStream.read(1024);
+    print("Server received: " + msg);
+
+    serverStream.write("ACK: " + msg);
+    let reply = clientStream.read(1024);
+    print("Client received reply: " + reply);
+
+    clientStream.close();
+    serverStream.close();
+    listener.close();
+
+    print("[Test Phase 12] TCP Socket Test PASSED!");
+    return 0;
+}
