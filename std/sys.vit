@@ -1,0 +1,4 @@
+// VIT Standard Library: System Module (std/sys.vit)
+
+extern function clock(): number;
+extern function exit(code: number): void;

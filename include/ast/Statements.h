@@ -283,6 +283,23 @@ public:
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 
+// Node representing a type alias (e.g. type Mapper = (x: number) => number;)
+class TypeAliasASTNode : public StatementNode {
+private:
+    std::string aliasName;
+    std::string typeSpec;
+
+public:
+    TypeAliasASTNode(std::string alias, std::string targetType)
+        : aliasName(std::move(alias)), typeSpec(std::move(targetType)) {}
+
+    const std::string& getAliasName() const { return aliasName; }
+    const std::string& getTypeSpec() const { return typeSpec; }
+
+    NodeType getType() const override { return NodeType::TypeAlias; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
 } // namespace vit
 
 #endif // VIT_STATEMENTS_H

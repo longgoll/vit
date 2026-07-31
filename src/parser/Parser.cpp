@@ -50,6 +50,8 @@ std::unique_ptr<ProgramASTNode> Parser::parseProgram() {
             topLevelStatements.push_back(parseStructDecl());
         } else if (check(TokenType::KwImport)) {
             topLevelStatements.push_back(parseImportDecl());
+        } else if (check(TokenType::KwType)) {
+            topLevelStatements.push_back(parseTypeAlias());
         } else {
             auto stmt = parseStatement();
             if (stmt) topLevelStatements.push_back(std::move(stmt));
@@ -57,6 +59,70 @@ std::unique_ptr<ProgramASTNode> Parser::parseProgram() {
     }
 
     return std::make_unique<ProgramASTNode>(std::move(functions), std::move(topLevelStatements));
+}
+
+std::string Parser::parseTypeSpec() {
+    std::string result;
+    if (check(TokenType::LParen)) {
+        advance();
+        result += "(";
+        bool first = true;
+        while (!check(TokenType::RParen) && !check(TokenType::TokEof)) {
+            if (!first) {
+                consume(TokenType::Comma, "Expected ',' in function type parameter list.");
+                result += ", ";
+            }
+            first = false;
+
+            Token t1 = curToken;
+            if (check(TokenType::Identifier) || check(TokenType::KwBoolean) || check(TokenType::KwString) || check(TokenType::KwVoid)) {
+                advance();
+                if (match(TokenType::Colon)) {
+                    std::string paramType = parseTypeSpec();
+                    result += paramType;
+                } else {
+                    std::string paramType = t1.lexeme;
+                    if (match(TokenType::LBracket)) {
+                        consume(TokenType::RBracket, "Expected ']' after '['.");
+                        paramType += "[]";
+                    }
+                    result += paramType;
+                }
+            } else if (check(TokenType::LParen)) {
+                std::string paramType = parseTypeSpec();
+                result += paramType;
+            } else {
+                throw ParseError("Expected type in function parameter list.", curToken.line, curToken.column);
+            }
+        }
+        consume(TokenType::RParen, "Expected ')' in function type.");
+        result += ")";
+
+        consume(TokenType::Arrow, "Expected '=>' in function type.");
+        result += " => ";
+        std::string retType = parseTypeSpec();
+        result += retType;
+    } else if (check(TokenType::Identifier) || check(TokenType::KwBoolean) || check(TokenType::KwString) || check(TokenType::KwVoid)) {
+        Token typeTok = curToken;
+        advance();
+        result = typeTok.lexeme;
+        if (match(TokenType::LBracket)) {
+            consume(TokenType::RBracket, "Expected ']' after '['.");
+            result += "[]";
+        }
+    } else {
+        throw ParseError("Expected type name.", curToken.line, curToken.column);
+    }
+    return result;
+}
+
+std::unique_ptr<TypeAliasASTNode> Parser::parseTypeAlias() {
+    consume(TokenType::KwType, "Expected 'type' keyword.");
+    Token aliasTok = consume(TokenType::Identifier, "Expected type alias name.");
+    consume(TokenType::Equal, "Expected '=' in type alias declaration.");
+    std::string targetType = parseTypeSpec();
+    match(TokenType::Semicolon); // Optional semicolon
+    return std::make_unique<TypeAliasASTNode>(aliasTok.lexeme, targetType);
 }
 
 std::unique_ptr<FunctionDeclASTNode> Parser::parseFunctionDecl(bool isExtern) {
@@ -69,17 +135,7 @@ std::unique_ptr<FunctionDeclASTNode> Parser::parseFunctionDecl(bool isExtern) {
 
     std::string returnType = "void";
     if (match(TokenType::Colon)) {
-        Token typeTok = curToken;
-        if (check(TokenType::Identifier) || check(TokenType::KwBoolean) || check(TokenType::KwString) || check(TokenType::KwVoid)) {
-            advance();
-            returnType = typeTok.lexeme;
-            if (match(TokenType::LBracket)) {
-                consume(TokenType::RBracket, "Expected ']' after '['.");
-                returnType += "[]";
-            }
-        } else {
-            throw ParseError("Expected return type name after ':'.", curToken.line, curToken.column);
-        }
+        returnType = parseTypeSpec();
     }
 
     std::unique_ptr<BlockASTNode> body = nullptr;
@@ -108,18 +164,8 @@ std::unique_ptr<StructDeclASTNode> Parser::parseStructDecl() {
         } else {
             Token fieldName = consume(TokenType::Identifier, "Expected field name or method declaration.");
             consume(TokenType::Colon, "Expected ':' after field name.");
-            Token fieldType = curToken;
-            if (check(TokenType::Identifier) || check(TokenType::KwBoolean) || check(TokenType::KwString) || check(TokenType::KwVoid)) {
-                advance();
-                std::string typeStr = fieldType.lexeme;
-                if (match(TokenType::LBracket)) {
-                    consume(TokenType::RBracket, "Expected ']' after '['.");
-                    typeStr += "[]";
-                }
-                fields.push_back({fieldName.lexeme, typeStr});
-            } else {
-                throw ParseError("Expected field type.", curToken.line, curToken.column);
-            }
+            std::string typeStr = parseTypeSpec();
+            fields.push_back({fieldName.lexeme, typeStr});
         }
         if (!match(TokenType::Comma)) {
             if (check(TokenType::RBrace)) break;
@@ -140,18 +186,8 @@ std::vector<Parameter> Parser::parseParameterList() {
     do {
         Token paramName = consume(TokenType::Identifier, "Expected parameter name.");
         consume(TokenType::Colon, "Expected ':' after parameter name.");
-        Token paramType = curToken;
-        if (check(TokenType::Identifier) || check(TokenType::KwBoolean) || check(TokenType::KwString) || check(TokenType::KwVoid)) {
-            advance();
-            std::string pType = paramType.lexeme;
-            if (match(TokenType::LBracket)) {
-                consume(TokenType::RBracket, "Expected ']' after '['.");
-                pType += "[]";
-            }
-            params.push_back({paramName.lexeme, pType});
-        } else {
-            throw ParseError("Expected parameter type name.", curToken.line, curToken.column);
-        }
+        std::string pType = parseTypeSpec();
+        params.push_back({paramName.lexeme, pType});
     } while (match(TokenType::Comma));
 
     return params;
@@ -245,17 +281,7 @@ std::unique_ptr<VarDeclASTNode> Parser::parseVarDecl() {
 
     std::string typeName = ""; // Empty means inferred
     if (match(TokenType::Colon)) {
-        Token typeTok = curToken;
-        if (check(TokenType::Identifier) || check(TokenType::KwBoolean) || check(TokenType::KwString) || check(TokenType::KwVoid)) {
-            advance();
-            typeName = typeTok.lexeme;
-            if (match(TokenType::LBracket)) {
-                consume(TokenType::RBracket, "Expected ']' after '['.");
-                typeName += "[]";
-            }
-        } else {
-            throw ParseError("Expected type name after ':'.", curToken.line, curToken.column);
-        }
+        typeName = parseTypeSpec();
     }
 
     std::unique_ptr<ExpressionNode> initExpr = nullptr;
@@ -583,15 +609,93 @@ std::unique_ptr<ExpressionNode> Parser::parsePrimary() {
             // Identifier variable reference: x
             expr = std::make_unique<VariableExprASTNode>(idTok.lexeme);
         }
-    } else if (match(TokenType::LParen)) {
-        expr = parseExpression();
-        consume(TokenType::RParen, "Expected ')' after expression.");
+    } else if (check(TokenType::LParen)) {
+        if (isLambdaLookahead()) {
+            expr = parseLambda();
+        } else {
+            advance(); // consume '('
+            expr = parseExpression();
+            consume(TokenType::RParen, "Expected ')' after expression.");
+        }
     } else {
         std::string msg = "Unexpected expression token '" + curToken.lexeme + "'";
         throw ParseError(msg, curToken.line, curToken.column);
     }
 
     return parsePostfix(std::move(expr));
+}
+
+bool Parser::isLambdaLookahead() {
+    if (!check(TokenType::LParen)) return false;
+
+    Lexer savedLexer = lexer;
+    Token savedToken = curToken;
+
+    advance(); // Consume '('
+
+    int parenDepth = 1;
+    bool hasArrow = false;
+
+    while (!check(TokenType::TokEof)) {
+        if (check(TokenType::LParen)) parenDepth++;
+        else if (check(TokenType::RParen)) {
+            parenDepth--;
+            if (parenDepth == 0) {
+                advance(); // Consume ')'
+                if (check(TokenType::Arrow)) {
+                    hasArrow = true;
+                } else if (check(TokenType::Colon)) {
+                    advance(); // Consume ':'
+                    if (check(TokenType::Identifier) || check(TokenType::KwBoolean) || check(TokenType::KwString) || check(TokenType::KwVoid) || check(TokenType::LParen)) {
+                        try {
+                            parseTypeSpec();
+                            if (check(TokenType::Arrow)) {
+                                hasArrow = true;
+                            }
+                        } catch (...) {}
+                    }
+                }
+                break;
+            }
+        }
+        advance();
+    }
+
+    lexer = savedLexer;
+    curToken = savedToken;
+    return hasArrow;
+}
+
+std::unique_ptr<LambdaASTNode> Parser::parseLambda() {
+    consume(TokenType::LParen, "Expected '(' at start of lambda parameters.");
+    std::vector<Parameter> params;
+    if (!check(TokenType::RParen)) {
+        do {
+            Token pName = consume(TokenType::Identifier, "Expected parameter name in lambda.");
+            std::string pType = "number"; // default if omitted
+            if (match(TokenType::Colon)) {
+                pType = parseTypeSpec();
+            }
+            params.push_back({pName.lexeme, pType});
+        } while (match(TokenType::Comma));
+    }
+    consume(TokenType::RParen, "Expected ')' after lambda parameter list.");
+
+    std::string returnType = "";
+    if (match(TokenType::Colon)) {
+        returnType = parseTypeSpec();
+    }
+
+    consume(TokenType::Arrow, "Expected '=>' after lambda parameters.");
+
+    std::unique_ptr<ASTNode> body;
+    if (check(TokenType::LBrace)) {
+        body = parseBlock();
+    } else {
+        body = parseExpression();
+    }
+
+    return std::make_unique<LambdaASTNode>(std::move(params), returnType, std::move(body));
 }
 
 } // namespace vit

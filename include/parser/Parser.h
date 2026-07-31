@@ -33,6 +33,8 @@ private:
     std::unique_ptr<FunctionDeclASTNode> parseFunctionDecl(bool isExtern = false);
     std::unique_ptr<StructDeclASTNode> parseStructDecl();
     std::unique_ptr<ImportASTNode> parseImportDecl();
+    std::unique_ptr<TypeAliasASTNode> parseTypeAlias();
+    std::string parseTypeSpec();
     std::vector<Parameter> parseParameterList();
     std::unique_ptr<BlockASTNode> parseBlock();
     std::unique_ptr<StatementNode> parseStatement();
@@ -58,6 +60,8 @@ private:
     std::unique_ptr<ExpressionNode> parsePostfix(std::unique_ptr<ExpressionNode> expr);
     std::unique_ptr<ExpressionNode> parsePrimary();
     std::unique_ptr<ExpressionNode> parseArrayLiteral();
+    std::unique_ptr<LambdaASTNode> parseLambda();
+    bool isLambdaLookahead();
 
 public:
     explicit Parser(Lexer lex);

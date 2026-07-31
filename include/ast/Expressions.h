@@ -193,6 +193,30 @@ public:
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 
+// Node representing a lambda / arrow function expression (e.g. (x: number): number => x * 2)
+class LambdaASTNode : public ExpressionNode {
+private:
+    std::vector<Parameter> params;
+    std::string returnType;
+    std::unique_ptr<ASTNode> body;
+
+public:
+    LambdaASTNode(std::vector<Parameter> parameters,
+                  std::string retType,
+                  std::unique_ptr<ASTNode> funcBody)
+        : params(std::move(parameters)),
+          returnType(std::move(retType)),
+          body(std::move(funcBody)) {}
+
+    const std::vector<Parameter>& getParams() const { return params; }
+    const std::string& getReturnType() const { return returnType; }
+    void setReturnType(const std::string& type) { returnType = std::move(type); }
+    ASTNode* getBody() const { return body.get(); }
+
+    NodeType getType() const override { return NodeType::Lambda; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
 } // namespace vit
 
 #endif // VIT_EXPRESSIONS_H

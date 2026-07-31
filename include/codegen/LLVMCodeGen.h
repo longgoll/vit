@@ -37,9 +37,11 @@ private:
     std::string currentBlockLabel;
     std::unordered_map<std::string, std::string> functionReturnTypes;
     std::unordered_map<std::string, StructInfo> structs;
+    std::unordered_map<std::string, std::string> typeAliases;
     int regCounter = 0;
     int labelCounter = 0;
     int stringCounter = 0;
+    int lambdaCounter = 0;
     bool blockHasTerminator = false;
 
     std::vector<LoopTarget> loopStack;
@@ -48,6 +50,7 @@ private:
 
     std::string newReg();
     std::string newLabel(const std::string& prefix);
+    std::string resolveType(const std::string& typeName) const;
     std::string getLLVMType(const std::string& vitType);
     void emitIndent();
     void cleanupCurrentScope();
@@ -73,6 +76,7 @@ public:
     void visit(PrintASTNode* node) override;
     void visit(StructDeclASTNode* node) override;
     void visit(ImportASTNode* node) override;
+    void visit(TypeAliasASTNode* node) override;
     void visit(NumberLiteralASTNode* node) override;
     void visit(BooleanLiteralASTNode* node) override;
     void visit(StringLiteralASTNode* node) override;
@@ -84,6 +88,7 @@ public:
     void visit(BinaryOpASTNode* node) override;
     void visit(CallExprASTNode* node) override;
     void visit(MethodCallASTNode* node) override;
+    void visit(LambdaASTNode* node) override;
     void visit(ExpressionStmtASTNode* node) override;
 };
 

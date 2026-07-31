@@ -24,7 +24,8 @@ static const std::unordered_map<std::string, TokenType> keywords = {
     {"struct", TokenType::KwStruct},
     {"extern", TokenType::KwExtern},
     {"import", TokenType::KwImport},
-    {"from", TokenType::KwFrom}
+    {"from", TokenType::KwFrom},
+    {"type", TokenType::KwType}
 };
 
 Lexer::Lexer(std::string sourceCode) : source(std::move(sourceCode)) {}
@@ -185,6 +186,10 @@ Token Lexer::nextToken() {
             if (peek() == '=') {
                 advance();
                 return Token(TokenType::EqualEqual, "==", startLine, startColumn);
+            }
+            if (peek() == '>') {
+                advance();
+                return Token(TokenType::Arrow, "=>", startLine, startColumn);
             }
             return Token(TokenType::Equal, "=", startLine, startColumn);
 

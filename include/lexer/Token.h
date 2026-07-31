@@ -28,6 +28,7 @@ enum class TokenType {
     KwExtern,   // extern
     KwImport,   // import
     KwFrom,     // from
+    KwType,     // type
 
     // Identifiers & Literals
     Identifier,    // e.g. add, main, x, number
@@ -50,6 +51,7 @@ enum class TokenType {
     PipePipe,     // ||
     Exclamation,  // !
     Dot,          // .
+    Arrow,        // =>
 
     // Delimiters
     LParen,    // (
@@ -99,6 +101,7 @@ inline std::string_view tokenTypeToString(TokenType type) {
         case TokenType::KwExtern: return "extern";
         case TokenType::KwImport: return "import";
         case TokenType::KwFrom: return "from";
+        case TokenType::KwType: return "type";
         case TokenType::Identifier: return "Identifier";
         case TokenType::NumberLiteral: return "NumberLiteral";
         case TokenType::StringLiteral: return "StringLiteral";
@@ -117,6 +120,7 @@ inline std::string_view tokenTypeToString(TokenType type) {
         case TokenType::PipePipe: return "||";
         case TokenType::Exclamation: return "!";
         case TokenType::Dot: return ".";
+        case TokenType::Arrow: return "=>";
         case TokenType::LParen: return "(";
         case TokenType::RParen: return ")";
         case TokenType::LBrace: return "{";

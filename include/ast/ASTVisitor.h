@@ -31,6 +31,8 @@ class UnaryOpASTNode;
 class BinaryOpASTNode;
 class CallExprASTNode;
 class MethodCallASTNode;
+class LambdaASTNode;
+class TypeAliasASTNode;
 class ExpressionStmtASTNode;
 
 class ASTVisitor {
@@ -53,6 +55,7 @@ public:
     virtual void visit(PrintASTNode* node) = 0;
     virtual void visit(StructDeclASTNode* node) = 0;
     virtual void visit(ImportASTNode* node) = 0;
+    virtual void visit(TypeAliasASTNode* node) = 0;
     virtual void visit(NumberLiteralASTNode* node) = 0;
     virtual void visit(BooleanLiteralASTNode* node) = 0;
     virtual void visit(StringLiteralASTNode* node) = 0;
@@ -64,6 +67,7 @@ public:
     virtual void visit(BinaryOpASTNode* node) = 0;
     virtual void visit(CallExprASTNode* node) = 0;
     virtual void visit(MethodCallASTNode* node) = 0;
+    virtual void visit(LambdaASTNode* node) = 0;
     virtual void visit(ExpressionStmtASTNode* node) = 0;
 };
 

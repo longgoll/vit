@@ -32,6 +32,7 @@ public:
     void visit(PrintASTNode* node) override;
     void visit(StructDeclASTNode* node) override;
     void visit(ImportASTNode* node) override;
+    void visit(TypeAliasASTNode* node) override;
     void visit(NumberLiteralASTNode* node) override;
     void visit(BooleanLiteralASTNode* node) override;
     void visit(StringLiteralASTNode* node) override;
@@ -43,6 +44,7 @@ public:
     void visit(BinaryOpASTNode* node) override;
     void visit(CallExprASTNode* node) override;
     void visit(MethodCallASTNode* node) override;
+    void visit(LambdaASTNode* node) override;
     void visit(ExpressionStmtASTNode* node) override;
 };
 

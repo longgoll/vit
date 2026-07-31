@@ -39,11 +39,20 @@ void SemanticAnalyzer::reportError(const std::string& msg) {
     errorMessages.push_back(msg);
 }
 
+std::string SemanticAnalyzer::resolveType(const std::string& typeName) const {
+    auto it = typeAliasTable.find(typeName);
+    if (it != typeAliasTable.end()) {
+        return resolveType(it->second);
+    }
+    return typeName;
+}
+
 bool SemanticAnalyzer::analyze(ProgramASTNode* program) {
     scopeStack.clear();
     functionTable.clear();
     structTable.clear();
     structMethodsTable.clear();
+    typeAliasTable.clear();
     errorMessages.clear();
     hasError = false;
     loopDepth = 0;
@@ -364,13 +373,58 @@ void SemanticAnalyzer::visit(BinaryOpASTNode* node) {
     }
 }
 
+void SemanticAnalyzer::visit(TypeAliasASTNode* node) {
+    typeAliasTable[node->getAliasName()] = node->getTypeSpec();
+}
+
+void SemanticAnalyzer::visit(LambdaASTNode* node) {
+    enterScope();
+    for (const auto& param : node->getParams()) {
+        declareVariable(param.name, resolveType(param.typeName), false);
+    }
+
+    std::string bodyType = "void";
+    if (node->getBody()) {
+        std::string oldRet = currentReturnType;
+        node->getBody()->accept(this);
+        bodyType = lastInferredType;
+        currentReturnType = oldRet;
+    }
+
+    exitScope();
+
+    if (node->getReturnType().empty()) {
+        node->setReturnType(bodyType);
+    }
+
+    std::string fnType = "(";
+    for (size_t i = 0; i < node->getParams().size(); ++i) {
+        fnType += resolveType(node->getParams()[i].typeName);
+        if (i + 1 < node->getParams().size()) fnType += ", ";
+    }
+    fnType += ") => " + resolveType(node->getReturnType());
+
+    lastInferredType = fnType;
+}
+
 void SemanticAnalyzer::visit(CallExprASTNode* node) {
     auto it = functionTable.find(node->getCallee());
-    if (it == functionTable.end()) {
-        reportError("Call to undefined function '" + node->getCallee() + "'.");
-        lastInferredType = "unknown";
+    if (it != functionTable.end()) {
+        lastInferredType = resolveType(it->second.first);
     } else {
-        lastInferredType = it->second.first;
+        const SymbolInfo* sym = lookupVariable(node->getCallee());
+        if (sym) {
+            std::string resolved = resolveType(sym->typeName);
+            size_t arrowPos = resolved.rfind("=> ");
+            if (arrowPos != std::string::npos) {
+                lastInferredType = resolved.substr(arrowPos + 3);
+            } else {
+                lastInferredType = "unknown";
+            }
+        } else {
+            reportError("Call to undefined function or variable '" + node->getCallee() + "'.");
+            lastInferredType = "unknown";
+        }
     }
 
     for (const auto& arg : node->getArgs()) {
@@ -382,7 +436,30 @@ void SemanticAnalyzer::visit(MethodCallASTNode* node) {
     if (node->getTarget()) {
         node->getTarget()->accept(this);
     }
-    std::string targetType = lastInferredType;
+    std::string targetType = resolveType(lastInferredType);
+
+    if (targetType.size() > 2 && targetType.substr(targetType.size() - 2) == "[]") {
+        std::string elemType = targetType.substr(0, targetType.size() - 2);
+        const std::string& method = node->getMethod();
+
+        if (method == "map" || method == "filter" || method == "forEach") {
+            if (!node->getArgs().empty()) {
+                node->getArgs()[0]->accept(this);
+                std::string lambdaType = resolveType(lastInferredType);
+
+                if (method == "map") {
+                    size_t arrowPos = lambdaType.rfind("=> ");
+                    std::string retType = (arrowPos != std::string::npos) ? lambdaType.substr(arrowPos + 3) : elemType;
+                    lastInferredType = retType + "[]";
+                } else if (method == "filter") {
+                    lastInferredType = targetType;
+                } else if (method == "forEach") {
+                    lastInferredType = "void";
+                }
+                return;
+            }
+        }
+    }
 
     for (const auto& arg : node->getArgs()) {
         arg->accept(this);
@@ -392,7 +469,7 @@ void SemanticAnalyzer::visit(MethodCallASTNode* node) {
     if (structIt != structMethodsTable.end()) {
         auto methodIt = structIt->second.find(node->getMethod());
         if (methodIt != structIt->second.end()) {
-            lastInferredType = methodIt->second.first;
+            lastInferredType = resolveType(methodIt->second.first);
             return;
         }
     }

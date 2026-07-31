@@ -1,0 +1,21 @@
+// Phase 6 Integration Test: First-Class Functions, Lambdas & Function Types
+
+type Mapper = (x: number) => number;
+
+function applyTwice(fn: Mapper, val: number): number {
+    return fn(fn(val));
+}
+
+function main(): number {
+    let double = (x: number): number => x * 2.0;
+    let res = applyTwice(double, 5.0);
+    print(res); // Expected: 20.000000
+
+    let addTen = (x: number): number => {
+        return x + 10.0;
+    };
+    let res2 = applyTwice(addTen, 5.0);
+    print(res2); // Expected: 25.000000
+
+    return 0;
+}

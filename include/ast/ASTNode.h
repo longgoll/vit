@@ -10,6 +10,11 @@ namespace vit {
 // Forward declaration of Visitor
 class ASTVisitor;
 
+struct Parameter {
+    std::string name;
+    std::string typeName;
+};
+
 enum class NodeType {
     Program,
     FunctionDecl,
@@ -38,6 +43,8 @@ enum class NodeType {
     BinaryOp,
     CallExpr,
     MethodCall,
+    Lambda,
+    TypeAlias,
     ExpressionStmt
 };
 

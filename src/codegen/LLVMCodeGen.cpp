@@ -15,12 +15,24 @@ void LLVMCodeGen::emitIndent() {
     irStream << "  ";
 }
 
-std::string LLVMCodeGen::getLLVMType(const std::string& vitType) {
+std::string LLVMCodeGen::resolveType(const std::string& typeName) const {
+    auto it = typeAliases.find(typeName);
+    if (it != typeAliases.end()) {
+        return resolveType(it->second);
+    }
+    return typeName;
+}
+
+std::string LLVMCodeGen::getLLVMType(const std::string& vitTypeRaw) {
+    std::string vitType = resolveType(vitTypeRaw);
     if (vitType == "boolean") return "i1";
     if (vitType == "string") return "i8*";
     if (vitType == "void") return "void";
     if (vitType.size() > 2 && vitType.substr(vitType.size() - 2) == "[]") {
         return "double*"; // Pointer to heap array
+    }
+    if (vitType.find("=>") != std::string::npos || (!vitType.empty() && vitType[0] == '(')) {
+        return "i8*";
     }
     auto it = structs.find(vitType);
     if (it != structs.end()) {
@@ -38,9 +50,11 @@ std::string LLVMCodeGen::generateIR(ProgramASTNode* program) {
     regCounter = 0;
     labelCounter = 0;
     stringCounter = 0;
+    lambdaCounter = 0;
     symbolTable.clear();
     functionReturnTypes.clear();
     structs.clear();
+    typeAliases.clear();
     loopStack.clear();
 
     visit(program);
@@ -74,6 +88,14 @@ std::string LLVMCodeGen::generateIR(ProgramASTNode* program) {
 }
 
 void LLVMCodeGen::visit(ProgramASTNode* node) {
+    // Pass 0: Register type aliases
+    for (const auto& stmt : node->getTopLevelStatements()) {
+        if (stmt->getType() == NodeType::TypeAlias) {
+            auto alias = static_cast<TypeAliasASTNode*>(stmt.get());
+            typeAliases[alias->getAliasName()] = alias->getTypeSpec();
+        }
+    }
+
     // Pass 1: Register struct definitions and method return types
     for (const auto& stmt : node->getTopLevelStatements()) {
         if (stmt->getType() == NodeType::StructDecl) {
@@ -891,6 +913,107 @@ void LLVMCodeGen::visit(ContinueASTNode* node) {
     }
 }
 
+void LLVMCodeGen::visit(TypeAliasASTNode* node) {
+    // Type aliases are compile-time metadata
+}
+
+void LLVMCodeGen::visit(LambdaASTNode* node) {
+    std::string lambdaName = "__lambda_" + std::to_string(lambdaCounter++);
+
+    std::stringstream parentIR;
+    parentIR << irStream.str();
+    irStream.str("");
+    irStream.clear();
+
+    std::string savedFunc = currentFunctionName;
+    std::string savedRet = currentFunctionReturnType;
+    std::string savedBlock = currentBlockLabel;
+    int savedRegs = regCounter;
+    bool savedTerminator = blockHasTerminator;
+    auto savedSymbolTable = symbolTable;
+    auto savedHeapStack = heapScopeStack;
+
+    currentFunctionName = lambdaName;
+    currentFunctionReturnType = node->getReturnType().empty() ? "number" : node->getReturnType();
+    regCounter = 0;
+    symbolTable.clear();
+    heapScopeStack.clear();
+
+    std::string llvmRetType = getLLVMType(currentFunctionReturnType);
+
+    irStream << "define " << llvmRetType << " @" << lambdaName << "(";
+    for (size_t i = 0; i < node->getParams().size(); ++i) {
+        irStream << getLLVMType(node->getParams()[i].typeName) << " %" << node->getParams()[i].name;
+        if (i + 1 < node->getParams().size()) irStream << ", ";
+    }
+    irStream << ") {\nentry:\n";
+    currentBlockLabel = "entry";
+
+    for (const auto& param : node->getParams()) {
+        std::string llvmType = getLLVMType(param.typeName);
+        std::string addrReg = "%" + param.name + ".addr";
+        emitIndent();
+        irStream << addrReg << " = alloca " << llvmType << ", align 8\n";
+        emitIndent();
+        irStream << "store " << llvmType << " %" << param.name << ", " << llvmType << "* " << addrReg << ", align 8\n";
+        symbolTable[param.name] = {addrReg, param.typeName};
+    }
+
+    blockHasTerminator = false;
+
+    if (node->getBody()) {
+        node->getBody()->accept(this);
+    }
+
+    if (!blockHasTerminator) {
+        emitIndent();
+        if (llvmRetType == "void") {
+            irStream << "ret void\n";
+        } else if (node->getBody() && node->getBody()->getType() != NodeType::Block && !lastResultReg.empty()) {
+            irStream << "ret " << llvmRetType << " " << lastResultReg << "\n";
+        } else if (llvmRetType == "i1") {
+            irStream << "ret i1 false\n";
+        } else if (llvmRetType == "i8*" || llvmRetType.back() == '*') {
+            irStream << "ret " << llvmRetType << " null\n";
+        } else {
+            irStream << "ret double 0.000000e+00\n";
+        }
+    }
+
+    irStream << "}\n\n";
+
+    globalDefsStream << irStream.str();
+
+    irStream.str("");
+    irStream.clear();
+    irStream << parentIR.str();
+
+    currentFunctionName = savedFunc;
+    currentFunctionReturnType = savedRet;
+    currentBlockLabel = savedBlock;
+    regCounter = savedRegs;
+    blockHasTerminator = savedTerminator;
+    symbolTable = savedSymbolTable;
+    heapScopeStack = savedHeapStack;
+
+    std::string fnPtrReg = newReg();
+    emitIndent();
+    irStream << fnPtrReg << " = bitcast " << llvmRetType << " (";
+    for (size_t i = 0; i < node->getParams().size(); ++i) {
+        irStream << getLLVMType(node->getParams()[i].typeName);
+        if (i + 1 < node->getParams().size()) irStream << ", ";
+    }
+    irStream << ")* @" << lambdaName << " to i8*\n";
+
+    lastResultReg = fnPtrReg;
+    lastResultType = "(";
+    for (size_t i = 0; i < node->getParams().size(); ++i) {
+        lastResultType += node->getParams()[i].typeName;
+        if (i + 1 < node->getParams().size()) lastResultType += ", ";
+    }
+    lastResultType += ") => " + currentFunctionReturnType;
+}
+
 void LLVMCodeGen::visit(CallExprASTNode* node) {
     std::vector<std::string> argRegs;
     std::vector<std::string> argTypes;
@@ -901,30 +1024,78 @@ void LLVMCodeGen::visit(CallExprASTNode* node) {
         argTypes.push_back(lastResultType);
     }
 
-    std::string retType = "number";
     auto it = functionReturnTypes.find(node->getCallee());
     if (it != functionReturnTypes.end()) {
-        retType = it->second;
+        std::string retType = it->second;
+        std::string llvmRetType = getLLVMType(retType);
+
+        std::string callReg = "";
+        emitIndent();
+        if (llvmRetType != "void") {
+            callReg = newReg();
+            irStream << callReg << " = ";
+        }
+        irStream << "call " << llvmRetType << " @" << node->getCallee() << "(";
+        for (size_t i = 0; i < argRegs.size(); ++i) {
+            std::string pType = getLLVMType(argTypes[i]);
+            irStream << pType << " " << argRegs[i];
+            if (i + 1 < argRegs.size()) irStream << ", ";
+        }
+        irStream << ")\n";
+
+        lastResultReg = callReg;
+        lastResultType = retType;
+        return;
     }
 
-    std::string llvmRetType = getLLVMType(retType);
+    auto symIt = symbolTable.find(node->getCallee());
+    if (symIt != symbolTable.end()) {
+        std::string varType = symIt->second.typeName;
+        std::string llvmVarType = getLLVMType(varType);
 
-    std::string callReg = "";
+        std::string rawPtr = newReg();
+        emitIndent();
+        irStream << rawPtr << " = load " << llvmVarType << ", " << llvmVarType << "* " << symIt->second.addrReg << ", align 8\n";
+
+        std::string retType = "number";
+        size_t arrowPos = varType.rfind("=> ");
+        if (arrowPos != std::string::npos) {
+            retType = varType.substr(arrowPos + 3);
+        }
+        std::string llvmRetType = getLLVMType(retType);
+
+        std::string castPtr = newReg();
+        emitIndent();
+        irStream << castPtr << " = bitcast i8* " << rawPtr << " to " << llvmRetType << " (";
+        for (size_t i = 0; i < argTypes.size(); ++i) {
+            irStream << getLLVMType(argTypes[i]);
+            if (i + 1 < argTypes.size()) irStream << ", ";
+        }
+        irStream << ")*\n";
+
+        std::string callReg = "";
+        emitIndent();
+        if (llvmRetType != "void") {
+            callReg = newReg();
+            irStream << callReg << " = ";
+        }
+        irStream << "call " << llvmRetType << " " << castPtr << "(";
+        for (size_t i = 0; i < argRegs.size(); ++i) {
+            irStream << getLLVMType(argTypes[i]) << " " << argRegs[i];
+            if (i + 1 < argRegs.size()) irStream << ", ";
+        }
+        irStream << ")\n";
+
+        lastResultReg = callReg;
+        lastResultType = retType;
+        return;
+    }
+
+    std::string callReg = newReg();
     emitIndent();
-    if (llvmRetType != "void") {
-        callReg = newReg();
-        irStream << callReg << " = ";
-    }
-    irStream << "call " << llvmRetType << " @" << node->getCallee() << "(";
-    for (size_t i = 0; i < argRegs.size(); ++i) {
-        std::string pType = getLLVMType(argTypes[i]);
-        irStream << pType << " " << argRegs[i];
-        if (i + 1 < argRegs.size()) irStream << ", ";
-    }
-    irStream << ")\n";
-
+    irStream << callReg << " = call double @" << node->getCallee() << "()\n";
     lastResultReg = callReg;
-    lastResultType = retType;
+    lastResultType = "number";
 }
 
 void LLVMCodeGen::visit(PrintASTNode* node) {
@@ -973,7 +1144,6 @@ void LLVMCodeGen::visit(PrintASTNode* node) {
             irStream << mergeLabel << ":\n";
             currentBlockLabel = mergeLabel;
         } else {
-            // Default number
             std::string strPtr = newReg();
             emitIndent();
             irStream << strPtr << " = getelementptr inbounds [4 x i8], [4 x i8]* @.fmt_num, i64 0, i64 0\n";
@@ -1066,6 +1236,277 @@ void LLVMCodeGen::visit(MethodCallASTNode* node) {
     node->getTarget()->accept(this);
     std::string targetReg = lastResultReg;
     std::string targetType = lastResultType;
+
+    if (targetType.size() > 2 && targetType.substr(targetType.size() - 2) == "[]") {
+        const std::string& method = node->getMethod();
+        if (method == "map" || method == "filter" || method == "forEach") {
+            std::string headerPtr = newReg();
+            emitIndent();
+            irStream << headerPtr << " = getelementptr inbounds double, double* " << targetReg << ", i64 -1\n";
+            std::string lenDbl = newReg();
+            emitIndent();
+            irStream << lenDbl << " = load double, double* " << headerPtr << ", align 8\n";
+
+            std::string nI64 = newReg();
+            emitIndent();
+            irStream << nI64 << " = fptosi double " << lenDbl << " to i64\n";
+
+            node->getArgs()[0]->accept(this);
+            std::string fnPtrRaw = lastResultReg;
+            std::string fnType = lastResultType;
+
+            std::string loopCondLabel = newLabel("array.method.cond");
+            std::string loopBodyLabel = newLabel("array.method.body");
+            std::string loopEndLabel = newLabel("array.method.end");
+
+            if (method == "map") {
+                std::string allocBytes = newReg();
+                std::string nPlus1 = newReg();
+                emitIndent();
+                irStream << nPlus1 << " = add i64 " << nI64 << ", 1\n";
+                emitIndent();
+                irStream << allocBytes << " = mul i64 " << nPlus1 << ", 8\n";
+
+                std::string mallocCall = newReg();
+                emitIndent();
+                irStream << mallocCall << " = call i8* @malloc(i64 " << allocBytes << ")\n";
+
+                std::string newBase = newReg();
+                emitIndent();
+                irStream << newBase << " = bitcast i8* " << mallocCall << " to double*\n";
+                emitIndent();
+                irStream << "store double " << lenDbl << ", double* " << newBase << ", align 8\n";
+
+                std::string newElemPtr = newReg();
+                emitIndent();
+                irStream << newElemPtr << " = getelementptr inbounds double, double* " << newBase << ", i64 1\n";
+
+                std::string idxVar = newReg();
+                emitIndent();
+                irStream << idxVar << " = alloca i64, align 8\n";
+                emitIndent();
+                irStream << "store i64 0, i64* " << idxVar << ", align 8\n";
+
+                emitIndent();
+                irStream << "br label %" << loopCondLabel << "\n";
+
+                irStream << loopCondLabel << ":\n";
+                currentBlockLabel = loopCondLabel;
+                std::string kVal = newReg();
+                emitIndent();
+                irStream << kVal << " = load i64, i64* " << idxVar << ", align 8\n";
+                std::string cond = newReg();
+                emitIndent();
+                irStream << cond << " = icmp slt i64 " << kVal << ", " << nI64 << "\n";
+                emitIndent();
+                irStream << "br i1 " << cond << ", label %" << loopBodyLabel << ", label %" << loopEndLabel << "\n";
+
+                irStream << loopBodyLabel << ":\n";
+                currentBlockLabel = loopBodyLabel;
+
+                std::string srcGep = newReg();
+                emitIndent();
+                irStream << srcGep << " = getelementptr inbounds double, double* " << targetReg << ", i64 " << kVal << "\n";
+                std::string srcElem = newReg();
+                emitIndent();
+                irStream << srcElem << " = load double, double* " << srcGep << ", align 8\n";
+
+                std::string castFn = newReg();
+                emitIndent();
+                irStream << castFn << " = bitcast i8* " << fnPtrRaw << " to double (double)*\n";
+
+                std::string resElem = newReg();
+                emitIndent();
+                irStream << resElem << " = call double " << castFn << "(double " << srcElem << ")\n";
+
+                std::string dstGep = newReg();
+                emitIndent();
+                irStream << dstGep << " = getelementptr inbounds double, double* " << newElemPtr << ", i64 " << kVal << "\n";
+                emitIndent();
+                irStream << "store double " << resElem << ", double* " << dstGep << ", align 8\n";
+
+                std::string nextK = newReg();
+                emitIndent();
+                irStream << nextK << " = add i64 " << kVal << ", 1\n";
+                emitIndent();
+                irStream << "store i64 " << nextK << ", i64* " << idxVar << ", align 8\n";
+                emitIndent();
+                irStream << "br label %" << loopCondLabel << "\n";
+
+                irStream << loopEndLabel << ":\n";
+                currentBlockLabel = loopEndLabel;
+
+                lastResultReg = newElemPtr;
+                lastResultType = "number[]";
+                return;
+            } else if (method == "filter") {
+                std::string allocBytes = newReg();
+                std::string nPlus1 = newReg();
+                emitIndent();
+                irStream << nPlus1 << " = add i64 " << nI64 << ", 1\n";
+                emitIndent();
+                irStream << allocBytes << " = mul i64 " << nPlus1 << ", 8\n";
+
+                std::string mallocCall = newReg();
+                emitIndent();
+                irStream << mallocCall << " = call i8* @malloc(i64 " << allocBytes << ")\n";
+
+                std::string newBase = newReg();
+                emitIndent();
+                irStream << newBase << " = bitcast i8* " << mallocCall << " to double*\n";
+                std::string newElemPtr = newReg();
+                emitIndent();
+                irStream << newElemPtr << " = getelementptr inbounds double, double* " << newBase << ", i64 1\n";
+
+                std::string idxVar = newReg();
+                std::string countVar = newReg();
+                emitIndent();
+                irStream << idxVar << " = alloca i64, align 8\n";
+                emitIndent();
+                irStream << countVar << " = alloca i64, align 8\n";
+                emitIndent();
+                irStream << "store i64 0, i64* " << idxVar << ", align 8\n";
+                emitIndent();
+                irStream << "store i64 0, i64* " << countVar << ", align 8\n";
+
+                emitIndent();
+                irStream << "br label %" << loopCondLabel << "\n";
+
+                irStream << loopCondLabel << ":\n";
+                currentBlockLabel = loopCondLabel;
+                std::string kVal = newReg();
+                emitIndent();
+                irStream << kVal << " = load i64, i64* " << idxVar << ", align 8\n";
+                std::string cond = newReg();
+                emitIndent();
+                irStream << cond << " = icmp slt i64 " << kVal << ", " << nI64 << "\n";
+                emitIndent();
+                irStream << "br i1 " << cond << ", label %" << loopBodyLabel << ", label %" << loopEndLabel << "\n";
+
+                irStream << loopBodyLabel << ":\n";
+                currentBlockLabel = loopBodyLabel;
+
+                std::string srcGep = newReg();
+                emitIndent();
+                irStream << srcGep << " = getelementptr inbounds double, double* " << targetReg << ", i64 " << kVal << "\n";
+                std::string srcElem = newReg();
+                emitIndent();
+                irStream << srcElem << " = load double, double* " << srcGep << ", align 8\n";
+
+                std::string castFn = newReg();
+                emitIndent();
+                irStream << castFn << " = bitcast i8* " << fnPtrRaw << " to i1 (double)*\n";
+
+                std::string matchBool = newReg();
+                emitIndent();
+                irStream << matchBool << " = call i1 " << castFn << "(double " << srcElem << ")\n";
+
+                std::string ifTrueLabel = newLabel("filter.true");
+                std::string ifNextLabel = newLabel("filter.next");
+
+                emitIndent();
+                irStream << "br i1 " << matchBool << ", label %" << ifTrueLabel << ", label %" << ifNextLabel << "\n";
+
+                irStream << ifTrueLabel << ":\n";
+                currentBlockLabel = ifTrueLabel;
+                std::string curCount = newReg();
+                emitIndent();
+                irStream << curCount << " = load i64, i64* " << countVar << ", align 8\n";
+
+                std::string dstGep = newReg();
+                emitIndent();
+                irStream << dstGep << " = getelementptr inbounds double, double* " << newElemPtr << ", i64 " << curCount << "\n";
+                emitIndent();
+                irStream << "store double " << srcElem << ", double* " << dstGep << ", align 8\n";
+
+                std::string nextCount = newReg();
+                emitIndent();
+                irStream << nextCount << " = add i64 " << curCount << ", 1\n";
+                emitIndent();
+                irStream << "store i64 " << nextCount << ", i64* " << countVar << ", align 8\n";
+                emitIndent();
+                irStream << "br label %" << ifNextLabel << "\n";
+
+                irStream << ifNextLabel << ":\n";
+                currentBlockLabel = ifNextLabel;
+
+                std::string nextK = newReg();
+                emitIndent();
+                irStream << nextK << " = add i64 " << kVal << ", 1\n";
+                emitIndent();
+                irStream << "store i64 " << nextK << ", i64* " << idxVar << ", align 8\n";
+                emitIndent();
+                irStream << "br label %" << loopCondLabel << "\n";
+
+                irStream << loopEndLabel << ":\n";
+                currentBlockLabel = loopEndLabel;
+
+                std::string finalCount = newReg();
+                emitIndent();
+                irStream << finalCount << " = load i64, i64* " << countVar << ", align 8\n";
+                std::string finalDbl = newReg();
+                emitIndent();
+                irStream << finalDbl << " = uitofp i64 " << finalCount << " to double\n";
+                emitIndent();
+                irStream << "store double " << finalDbl << ", double* " << newBase << ", align 8\n";
+
+                lastResultReg = newElemPtr;
+                lastResultType = targetType;
+                return;
+            } else if (method == "forEach") {
+                std::string idxVar = newReg();
+                emitIndent();
+                irStream << idxVar << " = alloca i64, align 8\n";
+                emitIndent();
+                irStream << "store i64 0, i64* " << idxVar << ", align 8\n";
+
+                emitIndent();
+                irStream << "br label %" << loopCondLabel << "\n";
+
+                irStream << loopCondLabel << ":\n";
+                currentBlockLabel = loopCondLabel;
+                std::string kVal = newReg();
+                emitIndent();
+                irStream << kVal << " = load i64, i64* " << idxVar << ", align 8\n";
+                std::string cond = newReg();
+                emitIndent();
+                irStream << cond << " = icmp slt i64 " << kVal << ", " << nI64 << "\n";
+                emitIndent();
+                irStream << "br i1 " << cond << ", label %" << loopBodyLabel << ", label %" << loopEndLabel << "\n";
+
+                irStream << loopBodyLabel << ":\n";
+                currentBlockLabel = loopBodyLabel;
+
+                std::string srcGep = newReg();
+                emitIndent();
+                irStream << srcGep << " = getelementptr inbounds double, double* " << targetReg << ", i64 " << kVal << "\n";
+                std::string srcElem = newReg();
+                emitIndent();
+                irStream << srcElem << " = load double, double* " << srcGep << ", align 8\n";
+
+                std::string castFn = newReg();
+                emitIndent();
+                irStream << castFn << " = bitcast i8* " << fnPtrRaw << " to void (double)*\n";
+                emitIndent();
+                irStream << "call void " << castFn << "(double " << srcElem << ")\n";
+
+                std::string nextK = newReg();
+                emitIndent();
+                irStream << nextK << " = add i64 " << kVal << ", 1\n";
+                emitIndent();
+                irStream << "store i64 " << nextK << ", i64* " << idxVar << ", align 8\n";
+                emitIndent();
+                irStream << "br label %" << loopCondLabel << "\n";
+
+                irStream << loopEndLabel << ":\n";
+                currentBlockLabel = loopEndLabel;
+
+                lastResultReg = "";
+                lastResultType = "void";
+                return;
+            }
+        }
+    }
 
     std::vector<std::string> argRegs;
     std::vector<std::string> argTypes;

@@ -27,6 +27,7 @@ private:
     std::unordered_map<std::string, std::pair<std::string, std::vector<std::string>>> functionTable; // funcName -> (returnType, paramTypes)
     std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> structTable; // structName -> fields (name, type)
     std::unordered_map<std::string, std::unordered_map<std::string, std::pair<std::string, std::vector<std::string>>>> structMethodsTable; // structName -> (methodName -> (retType, paramTypes))
+    std::unordered_map<std::string, std::string> typeAliasTable; // alias -> concreteType
 
     std::string currentReturnType;
     std::string lastInferredType;
@@ -38,6 +39,7 @@ private:
     void exitScope();
     bool declareVariable(const std::string& name, const std::string& typeName, bool isConst);
     const SymbolInfo* lookupVariable(const std::string& name) const;
+    std::string resolveType(const std::string& typeName) const;
     void reportError(const std::string& msg);
 
 public:
@@ -62,6 +64,7 @@ public:
     void visit(PrintASTNode* node) override;
     void visit(StructDeclASTNode* node) override;
     void visit(ImportASTNode* node) override;
+    void visit(TypeAliasASTNode* node) override;
     void visit(NumberLiteralASTNode* node) override;
     void visit(BooleanLiteralASTNode* node) override;
     void visit(StringLiteralASTNode* node) override;
@@ -73,6 +76,7 @@ public:
     void visit(BinaryOpASTNode* node) override;
     void visit(CallExprASTNode* node) override;
     void visit(MethodCallASTNode* node) override;
+    void visit(LambdaASTNode* node) override;
     void visit(ExpressionStmtASTNode* node) override;
 };
 

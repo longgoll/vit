@@ -316,6 +316,28 @@ void ASTPrinter::visit(MethodCallASTNode* node) {
     indentLevel--;
 }
 
+void ASTPrinter::visit(TypeAliasASTNode* node) {
+    printIndent();
+    out << "[TypeAliasASTNode] type " << node->getAliasName() << " = " << node->getTypeSpec() << "\n";
+}
+
+void ASTPrinter::visit(LambdaASTNode* node) {
+    printIndent();
+    out << "[LambdaASTNode] (";
+    const auto& params = node->getParams();
+    for (size_t i = 0; i < params.size(); ++i) {
+        out << params[i].name << ": " << params[i].typeName;
+        if (i + 1 < params.size()) out << ", ";
+    }
+    out << "): " << node->getReturnType() << "\n";
+
+    if (node->getBody()) {
+        indentLevel++;
+        node->getBody()->accept(this);
+        indentLevel--;
+    }
+}
+
 void ASTPrinter::visit(ExpressionStmtASTNode* node) {
     printIndent();
     out << "[ExpressionStmtASTNode]\n";

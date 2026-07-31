@@ -1,0 +1,6 @@
+// VIT Standard Library: Array Helpers (std/array.vit)
+
+function createArray(size: number): number[] {
+    let arr = [0.0];
+    return arr;
+}

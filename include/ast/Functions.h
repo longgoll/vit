@@ -7,11 +7,6 @@
 
 namespace vit {
 
-struct Parameter {
-    std::string name;
-    std::string typeName;
-};
-
 // Node representing a function declaration (e.g. function add(a: number, b: number): number { ... })
 class FunctionDeclASTNode : public ASTNode {
 private:

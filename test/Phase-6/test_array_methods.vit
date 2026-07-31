@@ -1,0 +1,28 @@
+// Phase 6 Integration Test: Array Higher-Order Methods (.map, .filter, .forEach)
+
+function main(): number {
+    let numbers = [1.0, 2.0, 3.0, 4.0, 5.0];
+
+    // Test .map
+    let doubled = numbers.map((x: number): number => x * 2.0);
+    print("--- Doubled Array ---");
+    print(doubled.length); // 5.0
+    print(doubled[0]); // 2.0
+    print(doubled[4]); // 10.0
+
+    // Test .filter
+    let filtered = numbers.filter((x: number): boolean => x > 2.0);
+    print("--- Filtered Array ---");
+    print(filtered.length); // 3.0
+    print(filtered[0]); // 3.0
+    print(filtered[1]); // 4.0
+    print(filtered[2]); // 5.0
+
+    // Test .forEach
+    print("--- ForEach Output ---");
+    numbers.forEach((x: number): void => {
+        print(x);
+    });
+
+    return 0;
+}
