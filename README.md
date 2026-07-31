@@ -57,6 +57,7 @@ vit/
 │   ├── codegen/
 │   └── main.cpp           # Điểm vào chính của VIT Compiler CLI
 ├── docs/                  # Tài liệu chi tiết các Phase và Work Logs
+│   ├── AI_CONTEXT_SUMMARY.md # Context tóm tắt Phase 1-4 dành cho AI Code
 │   ├── features/          # Đặc tả các tính năng
 │   └── history/           # Lịch sử phát triển dự án
 ├── test/                  # Các file mã nguồn test (.vit) theo từng Phase
