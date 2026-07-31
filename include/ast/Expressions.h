@@ -20,6 +20,34 @@ public:
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 
+// Node representing a boolean literal (e.g. true, false)
+class BooleanLiteralASTNode : public ExpressionNode {
+private:
+    bool value;
+
+public:
+    explicit BooleanLiteralASTNode(bool val) : value(val) {}
+
+    bool getValue() const { return value; }
+
+    NodeType getType() const override { return NodeType::BooleanLiteral; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing a string literal (e.g. "hello")
+class StringLiteralASTNode : public ExpressionNode {
+private:
+    std::string value;
+
+public:
+    explicit StringLiteralASTNode(std::string val) : value(std::move(val)) {}
+
+    const std::string& getValue() const { return value; }
+
+    NodeType getType() const override { return NodeType::StringLiteral; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
 // Node representing a variable expression (e.g. x, y)
 class VariableExprASTNode : public ExpressionNode {
 private:
@@ -31,6 +59,23 @@ public:
     const std::string& getName() const { return name; }
 
     NodeType getType() const override { return NodeType::VariableExpr; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing a unary operation (e.g. !flag, -x)
+class UnaryOpASTNode : public ExpressionNode {
+private:
+    std::string op; // "!", "-"
+    std::unique_ptr<ExpressionNode> operand;
+
+public:
+    UnaryOpASTNode(std::string opName, std::unique_ptr<ExpressionNode> expr)
+        : op(std::move(opName)), operand(std::move(expr)) {}
+
+    const std::string& getOp() const { return op; }
+    ExpressionNode* getOperand() const { return operand.get(); }
+
+    NodeType getType() const override { return NodeType::UnaryOp; }
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 

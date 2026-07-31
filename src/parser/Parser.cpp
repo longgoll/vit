@@ -61,8 +61,13 @@ std::unique_ptr<FunctionDeclASTNode> Parser::parseFunctionDecl() {
 
     std::string returnType = "void";
     if (match(TokenType::Colon)) {
-        Token typeTok = consume(TokenType::Identifier, "Expected return type name after ':'.");
-        returnType = typeTok.lexeme;
+        Token typeTok = curToken;
+        if (check(TokenType::Identifier) || check(TokenType::KwBoolean) || check(TokenType::KwString) || check(TokenType::KwVoid)) {
+            advance();
+            returnType = typeTok.lexeme;
+        } else {
+            throw ParseError("Expected return type name after ':'.", curToken.line, curToken.column);
+        }
     }
 
     std::unique_ptr<BlockASTNode> body = parseBlock();
@@ -81,8 +86,13 @@ std::vector<Parameter> Parser::parseParameterList() {
     do {
         Token paramName = consume(TokenType::Identifier, "Expected parameter name.");
         consume(TokenType::Colon, "Expected ':' after parameter name.");
-        Token paramType = consume(TokenType::Identifier, "Expected parameter type.");
-        params.push_back({paramName.lexeme, paramType.lexeme});
+        Token paramType = curToken;
+        if (check(TokenType::Identifier) || check(TokenType::KwBoolean) || check(TokenType::KwString) || check(TokenType::KwVoid)) {
+            advance();
+            params.push_back({paramName.lexeme, paramType.lexeme});
+        } else {
+            throw ParseError("Expected parameter type name.", curToken.line, curToken.column);
+        }
     } while (match(TokenType::Comma));
 
     return params;
@@ -106,6 +116,18 @@ std::unique_ptr<StatementNode> Parser::parseStatement() {
     }
     if (check(TokenType::KwIf)) {
         return parseIf();
+    }
+    if (check(TokenType::KwWhile)) {
+        return parseWhile();
+    }
+    if (check(TokenType::KwFor)) {
+        return parseFor();
+    }
+    if (check(TokenType::KwBreak)) {
+        return parseBreak();
+    }
+    if (check(TokenType::KwContinue)) {
+        return parseContinue();
     }
     if (check(TokenType::KwReturn)) {
         return parseReturn();
@@ -136,8 +158,13 @@ std::unique_ptr<VarDeclASTNode> Parser::parseVarDecl() {
 
     std::string typeName = "number"; // Default primitive
     if (match(TokenType::Colon)) {
-        Token typeTok = consume(TokenType::Identifier, "Expected type name.");
-        typeName = typeTok.lexeme;
+        Token typeTok = curToken;
+        if (check(TokenType::Identifier) || check(TokenType::KwBoolean) || check(TokenType::KwString) || check(TokenType::KwVoid)) {
+            advance();
+            typeName = typeTok.lexeme;
+        } else {
+            throw ParseError("Expected type name after ':'.", curToken.line, curToken.column);
+        }
     }
 
     consume(TokenType::Equal, "Expected '=' in variable declaration.");
@@ -182,6 +209,73 @@ std::unique_ptr<IfASTNode> Parser::parseIf() {
     );
 }
 
+std::unique_ptr<WhileASTNode> Parser::parseWhile() {
+    consume(TokenType::KwWhile, "Expected 'while'.");
+    consume(TokenType::LParen, "Expected '(' after 'while'.");
+    std::unique_ptr<ExpressionNode> cond = parseExpression();
+    consume(TokenType::RParen, "Expected ')' after while condition.");
+
+    std::unique_ptr<BlockASTNode> body = parseBlock();
+
+    return std::make_unique<WhileASTNode>(std::move(cond), std::move(body));
+}
+
+std::unique_ptr<ForASTNode> Parser::parseFor() {
+    consume(TokenType::KwFor, "Expected 'for'.");
+    consume(TokenType::LParen, "Expected '(' after 'for'.");
+
+    // Init statement (VarDecl or Assignment or nullptr)
+    std::unique_ptr<StatementNode> init = nullptr;
+    if (!check(TokenType::Semicolon)) {
+        if (check(TokenType::KwLet) || check(TokenType::KwConst)) {
+            init = parseVarDecl(); // parseVarDecl consumes trailing ';'
+        } else if (check(TokenType::Identifier)) {
+            Token nameTok = consume(TokenType::Identifier, "Expected variable name in for init.");
+            consume(TokenType::Equal, "Expected '=' after variable name.");
+            auto valExpr = parseExpression();
+            consume(TokenType::Semicolon, "Expected ';' after for init statement.");
+            init = std::make_unique<AssignmentASTNode>(nameTok.lexeme, std::move(valExpr));
+        }
+    } else {
+        consume(TokenType::Semicolon, "Expected ';'.");
+    }
+
+    // Condition expression (or nullptr)
+    std::unique_ptr<ExpressionNode> cond = nullptr;
+    if (!check(TokenType::Semicolon)) {
+        cond = parseExpression();
+    }
+    consume(TokenType::Semicolon, "Expected ';' after for condition.");
+
+    // Update statement (Assignment without trailing ';', or nullptr)
+    std::unique_ptr<StatementNode> update = nullptr;
+    if (!check(TokenType::RParen)) {
+        Token nameTok = consume(TokenType::Identifier, "Expected variable name in for update.");
+        consume(TokenType::Equal, "Expected '=' in for update statement.");
+        auto valExpr = parseExpression();
+        update = std::make_unique<AssignmentASTNode>(nameTok.lexeme, std::move(valExpr));
+    }
+    consume(TokenType::RParen, "Expected ')' after for clause.");
+
+    std::unique_ptr<BlockASTNode> body = parseBlock();
+
+    return std::make_unique<ForASTNode>(
+        std::move(init), std::move(cond), std::move(update), std::move(body)
+    );
+}
+
+std::unique_ptr<BreakASTNode> Parser::parseBreak() {
+    consume(TokenType::KwBreak, "Expected 'break'.");
+    consume(TokenType::Semicolon, "Expected ';' after break statement.");
+    return std::make_unique<BreakASTNode>();
+}
+
+std::unique_ptr<ContinueASTNode> Parser::parseContinue() {
+    consume(TokenType::KwContinue, "Expected 'continue'.");
+    consume(TokenType::Semicolon, "Expected ';' after continue statement.");
+    return std::make_unique<ContinueASTNode>();
+}
+
 std::unique_ptr<ReturnASTNode> Parser::parseReturn() {
     consume(TokenType::KwReturn, "Expected 'return'.");
     std::unique_ptr<ExpressionNode> retVal = nullptr;
@@ -212,7 +306,33 @@ std::unique_ptr<PrintASTNode> Parser::parsePrint() {
 }
 
 std::unique_ptr<ExpressionNode> Parser::parseExpression() {
-    return parseEquality();
+    return parseLogicalOr();
+}
+
+std::unique_ptr<ExpressionNode> Parser::parseLogicalOr() {
+    auto left = parseLogicalAnd();
+
+    while (check(TokenType::PipePipe)) {
+        Token opTok = curToken;
+        advance();
+        auto right = parseLogicalAnd();
+        left = std::make_unique<BinaryOpASTNode>(opTok.lexeme, std::move(left), std::move(right));
+    }
+
+    return left;
+}
+
+std::unique_ptr<ExpressionNode> Parser::parseLogicalAnd() {
+    auto left = parseEquality();
+
+    while (check(TokenType::AndAnd)) {
+        Token opTok = curToken;
+        advance();
+        auto right = parseEquality();
+        left = std::make_unique<BinaryOpASTNode>(opTok.lexeme, std::move(left), std::move(right));
+    }
+
+    return left;
 }
 
 std::unique_ptr<ExpressionNode> Parser::parseEquality() {
@@ -256,16 +376,27 @@ std::unique_ptr<ExpressionNode> Parser::parseAdditive() {
 }
 
 std::unique_ptr<ExpressionNode> Parser::parseMultiplicative() {
-    auto left = parsePrimary();
+    auto left = parseUnary();
 
     while (check(TokenType::Star) || check(TokenType::Slash)) {
         Token opTok = curToken;
         advance();
-        auto right = parsePrimary();
+        auto right = parseUnary();
         left = std::make_unique<BinaryOpASTNode>(opTok.lexeme, std::move(left), std::move(right));
     }
 
     return left;
+}
+
+std::unique_ptr<ExpressionNode> Parser::parseUnary() {
+    if (check(TokenType::Exclamation) || check(TokenType::Minus)) {
+        Token opTok = curToken;
+        advance();
+        auto operand = parseUnary();
+        return std::make_unique<UnaryOpASTNode>(opTok.lexeme, std::move(operand));
+    }
+
+    return parsePrimary();
 }
 
 std::unique_ptr<ExpressionNode> Parser::parsePrimary() {
@@ -274,6 +405,22 @@ std::unique_ptr<ExpressionNode> Parser::parsePrimary() {
         advance();
         double val = std::stod(numTok.lexeme);
         return std::make_unique<NumberLiteralASTNode>(val);
+    }
+
+    if (check(TokenType::StringLiteral)) {
+        Token strTok = curToken;
+        advance();
+        return std::make_unique<StringLiteralASTNode>(strTok.lexeme);
+    }
+
+    if (check(TokenType::KwTrue)) {
+        advance();
+        return std::make_unique<BooleanLiteralASTNode>(true);
+    }
+
+    if (check(TokenType::KwFalse)) {
+        advance();
+        return std::make_unique<BooleanLiteralASTNode>(false);
     }
 
     if (check(TokenType::Identifier)) {

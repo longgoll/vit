@@ -17,10 +17,17 @@ enum class NodeType {
     VarDecl,
     Assignment,
     If,
+    While,
+    For,
+    Break,
+    Continue,
     Return,
     Print,
     NumberLiteral,
+    BooleanLiteral,
+    StringLiteral,
     VariableExpr,
+    UnaryOp,
     BinaryOp,
     CallExpr
 };

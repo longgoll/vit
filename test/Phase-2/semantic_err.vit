@@ -1,0 +1,10 @@
+function main(): number {
+    const x: number = 10;
+    x = 20; // Semantic error: re-assigning const
+
+    let y: number = z + 5; // Semantic error: z is undeclared
+
+    break; // Semantic error: break outside loop
+
+    return 0;
+}

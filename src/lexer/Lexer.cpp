@@ -11,7 +11,16 @@ static const std::unordered_map<std::string, TokenType> keywords = {
     {"if", TokenType::KwIf},
     {"else", TokenType::KwElse},
     {"return", TokenType::KwReturn},
-    {"print", TokenType::KwPrint}
+    {"print", TokenType::KwPrint},
+    {"while", TokenType::KwWhile},
+    {"for", TokenType::KwFor},
+    {"break", TokenType::KwBreak},
+    {"continue", TokenType::KwContinue},
+    {"true", TokenType::KwTrue},
+    {"false", TokenType::KwFalse},
+    {"boolean", TokenType::KwBoolean},
+    {"string", TokenType::KwString},
+    {"void", TokenType::KwVoid}
 };
 
 Lexer::Lexer(std::string sourceCode) : source(std::move(sourceCode)) {}
@@ -82,6 +91,35 @@ Token Lexer::number() {
     return Token(TokenType::NumberLiteral, numStr, startLine, startColumn);
 }
 
+Token Lexer::stringLiteral() {
+    size_t startLine = line;
+    size_t startColumn = column;
+    advance(); // Consume opening '"'
+    std::string value;
+
+    while (!isAtEnd() && peek() != '"') {
+        if (peek() == '\\' && peekNext() != '\0') {
+            advance(); // Consume '\'
+            char escaped = advance();
+            if (escaped == 'n') value += '\n';
+            else if (escaped == 't') value += '\t';
+            else if (escaped == 'r') value += '\r';
+            else if (escaped == '"') value += '"';
+            else if (escaped == '\\') value += '\\';
+            else value += escaped;
+        } else {
+            value += advance();
+        }
+    }
+
+    if (isAtEnd()) {
+        return Token(TokenType::TokUnknown, value, startLine, startColumn);
+    }
+
+    advance(); // Consume closing '"'
+    return Token(TokenType::StringLiteral, value, startLine, startColumn);
+}
+
 Token Lexer::identifierOrKeyword() {
     size_t startLine = line;
     size_t startColumn = column;
@@ -108,6 +146,10 @@ Token Lexer::nextToken() {
     size_t startLine = line;
     size_t startColumn = column;
     char c = peek();
+
+    if (c == '"') {
+        return stringLiteral();
+    }
 
     if (std::isdigit(c)) {
         return number();
@@ -144,7 +186,21 @@ Token Lexer::nextToken() {
                 advance();
                 return Token(TokenType::NotEqual, "!=", startLine, startColumn);
             }
-            return Token(TokenType::TokUnknown, "!", startLine, startColumn);
+            return Token(TokenType::Exclamation, "!", startLine, startColumn);
+
+        case '&':
+            if (peek() == '&') {
+                advance();
+                return Token(TokenType::AndAnd, "&&", startLine, startColumn);
+            }
+            return Token(TokenType::TokUnknown, "&", startLine, startColumn);
+
+        case '|':
+            if (peek() == '|') {
+                advance();
+                return Token(TokenType::PipePipe, "||", startLine, startColumn);
+            }
+            return Token(TokenType::TokUnknown, "|", startLine, startColumn);
 
         case '<':
             if (peek() == '=') {

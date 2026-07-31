@@ -3,6 +3,7 @@
 #include "codegen/NativeCompiler.h"
 #include "lexer/Lexer.h"
 #include "parser/Parser.h"
+#include "semantics/SemanticAnalyzer.h"
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -15,7 +16,7 @@
 
 using namespace vit;
 
-const std::string VIT_VERSION = "0.1.0 (Phase 1)";
+const std::string VIT_VERSION = "0.2.0 (Phase 2)";
 
 void printUsage(const char* progName) {
     std::cout << "VIT Language Compiler v" << VIT_VERSION << "\n\n";
@@ -228,7 +229,18 @@ int main(int argc, char* argv[]) {
             std::cout << "-----------------------------------\n";
         }
 
-        // 2. Code Generation (LLVM IR)
+        // 2. Semantic Analysis (Type & Scope Check)
+        SemanticAnalyzer semanticAnalyzer;
+        if (!semanticAnalyzer.analyze(programAST.get())) {
+            std::cerr << "\n\033[31m[Semantic Error]\033[0m Found "
+                      << semanticAnalyzer.getErrors().size() << " error(s):\n";
+            for (const auto& err : semanticAnalyzer.getErrors()) {
+                std::cerr << "  - " << err << "\n";
+            }
+            return 1;
+        }
+
+        // 3. Code Generation (LLVM IR)
         LLVMCodeGen codeGen;
         std::string llvmIR = codeGen.generateIR(programAST.get());
 

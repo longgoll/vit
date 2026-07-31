@@ -21,6 +21,7 @@ private:
     void skipWhitespaceAndComments();
 
     Token number();
+    Token stringLiteral();
     Token identifierOrKeyword();
 
 public:

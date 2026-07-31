@@ -10,6 +10,7 @@ set(SOURCES
     src/ast/ASTPrinter.cpp
     src/lexer/Lexer.cpp
     src/parser/Parser.cpp
+    src/semantics/SemanticAnalyzer.cpp
     src/codegen/LLVMCodeGen.cpp
     src/codegen/NativeCompiler.cpp
     src/main.cpp

@@ -1,0 +1,22 @@
+function main(): number {
+    print("--- Loop Test ---");
+
+    let count: number = 0;
+    while (count < 5) {
+        print(count);
+        count = count + 1;
+    }
+
+    print("--- For Loop & Break / Continue Test ---");
+    for (let i = 0; i < 10; i = i + 1) {
+        if (i == 3) {
+            continue;
+        }
+        if (i == 7) {
+            break;
+        }
+        print(i);
+    }
+
+    return 0;
+}

@@ -91,6 +91,69 @@ public:
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 
+// Node representing a while loop (e.g. while (cond) { ... })
+class WhileASTNode : public StatementNode {
+private:
+    std::unique_ptr<ExpressionNode> condition;
+    std::unique_ptr<BlockASTNode> body;
+
+public:
+    WhileASTNode(std::unique_ptr<ExpressionNode> condExpr,
+                 std::unique_ptr<BlockASTNode> bodyBlock)
+        : condition(std::move(condExpr)), body(std::move(bodyBlock)) {}
+
+    ExpressionNode* getCondition() const { return condition.get(); }
+    BlockASTNode* getBody() const { return body.get(); }
+
+    NodeType getType() const override { return NodeType::While; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing a for loop (e.g. for (let i = 0; i < 10; i = i + 1) { ... })
+class ForASTNode : public StatementNode {
+private:
+    std::unique_ptr<StatementNode> init;       // VarDecl or Assignment or nullptr
+    std::unique_ptr<ExpressionNode> condition; // Expression or nullptr
+    std::unique_ptr<StatementNode> update;     // Assignment or nullptr
+    std::unique_ptr<BlockASTNode> body;
+
+public:
+    ForASTNode(std::unique_ptr<StatementNode> initStmt,
+               std::unique_ptr<ExpressionNode> condExpr,
+               std::unique_ptr<StatementNode> updateStmt,
+               std::unique_ptr<BlockASTNode> bodyBlock)
+        : init(std::move(initStmt)),
+          condition(std::move(condExpr)),
+          update(std::move(updateStmt)),
+          body(std::move(bodyBlock)) {}
+
+    StatementNode* getInit() const { return init.get(); }
+    ExpressionNode* getCondition() const { return condition.get(); }
+    StatementNode* getUpdate() const { return update.get(); }
+    BlockASTNode* getBody() const { return body.get(); }
+
+    NodeType getType() const override { return NodeType::For; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing a break statement (break;)
+class BreakASTNode : public StatementNode {
+public:
+    BreakASTNode() = default;
+
+    NodeType getType() const override { return NodeType::Break; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing a continue statement (continue;)
+class ContinueASTNode : public StatementNode {
+public:
+    ContinueASTNode() = default;
+
+    NodeType getType() const override { return NodeType::Continue; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
 // Node representing a return statement (e.g. return a + b;)
 class ReturnASTNode : public StatementNode {
 private:

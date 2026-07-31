@@ -105,6 +105,64 @@ void ASTPrinter::visit(IfASTNode* node) {
     indentLevel--;
 }
 
+void ASTPrinter::visit(WhileASTNode* node) {
+    printIndent();
+    out << "[WhileASTNode]\n";
+    indentLevel++;
+    printIndent();
+    out << "Condition:\n";
+    indentLevel++;
+    if (node->getCondition()) node->getCondition()->accept(this);
+    indentLevel--;
+    printIndent();
+    out << "Body:\n";
+    indentLevel++;
+    if (node->getBody()) node->getBody()->accept(this);
+    indentLevel -= 2;
+}
+
+void ASTPrinter::visit(ForASTNode* node) {
+    printIndent();
+    out << "[ForASTNode]\n";
+    indentLevel++;
+    if (node->getInit()) {
+        printIndent();
+        out << "Init:\n";
+        indentLevel++;
+        node->getInit()->accept(this);
+        indentLevel--;
+    }
+    if (node->getCondition()) {
+        printIndent();
+        out << "Condition:\n";
+        indentLevel++;
+        node->getCondition()->accept(this);
+        indentLevel--;
+    }
+    if (node->getUpdate()) {
+        printIndent();
+        out << "Update:\n";
+        indentLevel++;
+        node->getUpdate()->accept(this);
+        indentLevel--;
+    }
+    printIndent();
+    out << "Body:\n";
+    indentLevel++;
+    if (node->getBody()) node->getBody()->accept(this);
+    indentLevel -= 2;
+}
+
+void ASTPrinter::visit(BreakASTNode* node) {
+    printIndent();
+    out << "[BreakASTNode]\n";
+}
+
+void ASTPrinter::visit(ContinueASTNode* node) {
+    printIndent();
+    out << "[ContinueASTNode]\n";
+}
+
 void ASTPrinter::visit(ReturnASTNode* node) {
     printIndent();
     out << "[ReturnASTNode]\n";
@@ -130,9 +188,29 @@ void ASTPrinter::visit(NumberLiteralASTNode* node) {
     out << "[NumberLiteralASTNode] " << node->getValue() << "\n";
 }
 
+void ASTPrinter::visit(BooleanLiteralASTNode* node) {
+    printIndent();
+    out << "[BooleanLiteralASTNode] " << (node->getValue() ? "true" : "false") << "\n";
+}
+
+void ASTPrinter::visit(StringLiteralASTNode* node) {
+    printIndent();
+    out << "[StringLiteralASTNode] \"" << node->getValue() << "\"\n";
+}
+
 void ASTPrinter::visit(VariableExprASTNode* node) {
     printIndent();
     out << "[VariableExprASTNode] " << node->getName() << "\n";
+}
+
+void ASTPrinter::visit(UnaryOpASTNode* node) {
+    printIndent();
+    out << "[UnaryOpASTNode] op: '" << node->getOp() << "'\n";
+    indentLevel++;
+    if (node->getOperand()) {
+        node->getOperand()->accept(this);
+    }
+    indentLevel--;
 }
 
 void ASTPrinter::visit(BinaryOpASTNode* node) {

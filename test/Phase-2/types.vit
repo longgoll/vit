@@ -1,0 +1,29 @@
+function checkStatus(flag: boolean): boolean {
+    return !flag;
+}
+
+function main(): number {
+    let msg: string = "VIT Phase 2 Features Active!";
+    print(msg);
+
+    let isReady: boolean = true;
+    let isFinished: boolean = false;
+
+    print("isReady:");
+    print(isReady);
+
+    print("isFinished:");
+    print(isFinished);
+
+    print("Logic AND (true && false):");
+    print(isReady && isFinished);
+
+    print("Logic OR (true || false):");
+    print(isReady || isFinished);
+
+    print("Function returning inverted bool (checkStatus(true)):");
+    let inv: boolean = checkStatus(true);
+    print(inv);
+
+    return 0;
+}

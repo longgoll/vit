@@ -68,6 +68,14 @@ build CMakeFiles/vit.dir/src/parser/Parser.cpp.obj: CXX_COMPILER__vit_unscanned_
   OBJECT_FILE_DIR = CMakeFiles\vit.dir\src\parser
   TARGET_SUPPORT_DIR = CMakeFiles\vit.dir
 
+build CMakeFiles/vit.dir/src/semantics/SemanticAnalyzer.cpp.obj: CXX_COMPILER__vit_unscanned_ D$:/HoangLong/Dev/vit/src/semantics/SemanticAnalyzer.cpp || cmake_object_order_depends_target_vit
+  DEP_FILE = CMakeFiles\vit.dir\src\semantics\SemanticAnalyzer.cpp.obj.d
+  FLAGS = -std=gnu++20
+  INCLUDES = -ID:/HoangLong/Dev/vit/include
+  OBJECT_DIR = CMakeFiles\vit.dir
+  OBJECT_FILE_DIR = CMakeFiles\vit.dir\src\semantics
+  TARGET_SUPPORT_DIR = CMakeFiles\vit.dir
+
 build CMakeFiles/vit.dir/src/codegen/LLVMCodeGen.cpp.obj: CXX_COMPILER__vit_unscanned_ D$:/HoangLong/Dev/vit/src/codegen/LLVMCodeGen.cpp || cmake_object_order_depends_target_vit
   DEP_FILE = CMakeFiles\vit.dir\src\codegen\LLVMCodeGen.cpp.obj.d
   FLAGS = -std=gnu++20
@@ -100,7 +108,7 @@ build CMakeFiles/vit.dir/src/main.cpp.obj: CXX_COMPILER__vit_unscanned_ D$:/Hoan
 #############################################
 # Link the executable vit.exe
 
-build vit.exe: CXX_EXECUTABLE_LINKER__vit_ CMakeFiles/vit.dir/src/ast/ASTPrinter.cpp.obj CMakeFiles/vit.dir/src/lexer/Lexer.cpp.obj CMakeFiles/vit.dir/src/parser/Parser.cpp.obj CMakeFiles/vit.dir/src/codegen/LLVMCodeGen.cpp.obj CMakeFiles/vit.dir/src/codegen/NativeCompiler.cpp.obj CMakeFiles/vit.dir/src/main.cpp.obj
+build vit.exe: CXX_EXECUTABLE_LINKER__vit_ CMakeFiles/vit.dir/src/ast/ASTPrinter.cpp.obj CMakeFiles/vit.dir/src/lexer/Lexer.cpp.obj CMakeFiles/vit.dir/src/parser/Parser.cpp.obj CMakeFiles/vit.dir/src/semantics/SemanticAnalyzer.cpp.obj CMakeFiles/vit.dir/src/codegen/LLVMCodeGen.cpp.obj CMakeFiles/vit.dir/src/codegen/NativeCompiler.cpp.obj CMakeFiles/vit.dir/src/main.cpp.obj
   LINK_FLAGS = -static -static-libgcc -static-libstdc++
   LINK_LIBRARIES = -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
   OBJECT_DIR = CMakeFiles\vit.dir
