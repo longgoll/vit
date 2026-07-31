@@ -1,3 +1,0 @@
-D:/HoangLong/Dev/vit/build/CMakeFiles/vit.dir
-D:/HoangLong/Dev/vit/build/CMakeFiles/edit_cache.dir
-D:/HoangLong/Dev/vit/build/CMakeFiles/rebuild_cache.dir
