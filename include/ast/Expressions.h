@@ -271,6 +271,68 @@ public:
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
 };
 
+// Node representing a null literal (e.g. null)
+class NullLiteralASTNode : public ExpressionNode {
+public:
+    NullLiteralASTNode() = default;
+
+    NodeType getType() const override { return NodeType::NullLiteral; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing try operator (e.g. expr?)
+class TryExprASTNode : public ExpressionNode {
+private:
+    std::unique_ptr<ExpressionNode> expr;
+
+public:
+    explicit TryExprASTNode(std::unique_ptr<ExpressionNode> e)
+        : expr(std::move(e)) {}
+
+    ExpressionNode* getExpr() const { return expr.get(); }
+
+    NodeType getType() const override { return NodeType::TryExpr; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing optional chaining (e.g. target?.member or target?.method(args))
+class OptionalChainASTNode : public ExpressionNode {
+private:
+    std::unique_ptr<ExpressionNode> target;
+    std::string member;
+    bool isMethodCall;
+    std::vector<std::unique_ptr<ExpressionNode>> args;
+
+public:
+    OptionalChainASTNode(std::unique_ptr<ExpressionNode> targetExpr, std::string memberName, bool isCall = false, std::vector<std::unique_ptr<ExpressionNode>> arguments = {})
+        : target(std::move(targetExpr)), member(std::move(memberName)), isMethodCall(isCall), args(std::move(arguments)) {}
+
+    ExpressionNode* getTarget() const { return target.get(); }
+    const std::string& getMember() const { return member; }
+    bool getIsMethodCall() const { return isMethodCall; }
+    const std::vector<std::unique_ptr<ExpressionNode>>& getArgs() const { return args; }
+
+    NodeType getType() const override { return NodeType::OptionalChain; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
+// Node representing nullish coalescing (e.g. left ?? right)
+class NullCoalesceASTNode : public ExpressionNode {
+private:
+    std::unique_ptr<ExpressionNode> left;
+    std::unique_ptr<ExpressionNode> right;
+
+public:
+    NullCoalesceASTNode(std::unique_ptr<ExpressionNode> lhs, std::unique_ptr<ExpressionNode> rhs)
+        : left(std::move(lhs)), right(std::move(rhs)) {}
+
+    ExpressionNode* getLeft() const { return left.get(); }
+    ExpressionNode* getRight() const { return right.get(); }
+
+    NodeType getType() const override { return NodeType::NullCoalesce; }
+    void accept(ASTVisitor* visitor) override { visitor->visit(this); }
+};
+
 } // namespace vit
 
 #endif // VIT_EXPRESSIONS_H

@@ -312,4 +312,20 @@ void Monomorphizer::visit(ExpressionStmtASTNode* node) {
     if (node->getExpression()) node->getExpression()->accept(this);
 }
 
+void Monomorphizer::visit(NullLiteralASTNode* node) {}
+
+void Monomorphizer::visit(TryExprASTNode* node) {
+    if (node->getExpr()) node->getExpr()->accept(this);
+}
+
+void Monomorphizer::visit(OptionalChainASTNode* node) {
+    if (node->getTarget()) node->getTarget()->accept(this);
+    for (const auto& arg : node->getArgs()) arg->accept(this);
+}
+
+void Monomorphizer::visit(NullCoalesceASTNode* node) {
+    if (node->getLeft()) node->getLeft()->accept(this);
+    if (node->getRight()) node->getRight()->accept(this);
+}
+
 } // namespace vit

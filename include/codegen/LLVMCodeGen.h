@@ -97,6 +97,10 @@ public:
     void visit(EnumVariantExprASTNode* node) override;
     void visit(MatchASTNode* node) override;
     void visit(ExpressionStmtASTNode* node) override;
+    void visit(NullLiteralASTNode* node) override;
+    void visit(TryExprASTNode* node) override;
+    void visit(OptionalChainASTNode* node) override;
+    void visit(NullCoalesceASTNode* node) override;
 };
 
 

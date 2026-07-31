@@ -66,6 +66,10 @@ public:
     void visit(MethodCallASTNode* node) override;
     void visit(LambdaASTNode* node) override;
     void visit(ExpressionStmtASTNode* node) override;
+    void visit(NullLiteralASTNode* node) override;
+    void visit(TryExprASTNode* node) override;
+    void visit(OptionalChainASTNode* node) override;
+    void visit(NullCoalesceASTNode* node) override;
 };
 
 } // namespace vit

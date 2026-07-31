@@ -1,0 +1,24 @@
+enum Option<T> {
+    Some(T),
+    None
+}
+
+function getVal(flag: boolean): Option<number> {
+    if (flag) {
+        return Option.Some(42.0);
+    }
+    return Option.None;
+}
+
+function process(flag: boolean): Option<number> {
+    let v = getVal(flag)?;
+    print(v);
+    return Option.Some(v * 2.0);
+}
+
+function main(): number {
+    print("=== Testing Try Operator (?) ===");
+    process(true);
+    process(false);
+    return 0;
+}

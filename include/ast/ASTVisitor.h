@@ -37,6 +37,10 @@ class EnumDeclASTNode;
 class EnumVariantExprASTNode;
 class MatchASTNode;
 class ExpressionStmtASTNode;
+class NullLiteralASTNode;
+class TryExprASTNode;
+class OptionalChainASTNode;
+class NullCoalesceASTNode;
 
 class ASTVisitor {
 public:
@@ -75,6 +79,10 @@ public:
     virtual void visit(EnumVariantExprASTNode* node) = 0;
     virtual void visit(MatchASTNode* node) = 0;
     virtual void visit(ExpressionStmtASTNode* node) = 0;
+    virtual void visit(NullLiteralASTNode* node) = 0;
+    virtual void visit(TryExprASTNode* node) = 0;
+    virtual void visit(OptionalChainASTNode* node) = 0;
+    virtual void visit(NullCoalesceASTNode* node) = 0;
 };
 
 } // namespace vit

@@ -53,6 +53,7 @@ private:
 
     // Expression parsing (Precedence Climbing)
     std::unique_ptr<ExpressionNode> parseExpression();
+    std::unique_ptr<ExpressionNode> parseNullCoalescing();
     std::unique_ptr<ExpressionNode> parseLogicalOr();
     std::unique_ptr<ExpressionNode> parseLogicalAnd();
     std::unique_ptr<ExpressionNode> parseEquality();

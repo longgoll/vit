@@ -1,0 +1,5 @@
+function main(): number {
+    let arr = [1.0, 2.0];
+    print(arr[5]); // Out of bounds access! Should panic cleanly.
+    return 0;
+}

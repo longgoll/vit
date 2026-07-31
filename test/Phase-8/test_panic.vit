@@ -1,0 +1,7 @@
+function main(): number {
+    print("=== Testing Assertions ===");
+    let x = 10.0;
+    assert(x == 10.0, "x should be 10");
+    print("Assert passed!");
+    return 0;
+}

@@ -27,7 +27,8 @@ static const std::unordered_map<std::string, TokenType> keywords = {
     {"from", TokenType::KwFrom},
     {"type", TokenType::KwType},
     {"enum", TokenType::KwEnum},
-    {"match", TokenType::KwMatch}
+    {"match", TokenType::KwMatch},
+    {"null", TokenType::KwNull}
 };
 
 Lexer::Lexer(std::string sourceCode) : source(std::move(sourceCode)) {}
@@ -229,6 +230,17 @@ Token Lexer::nextToken() {
                 return Token(TokenType::GreaterEqual, ">=", startLine, startColumn);
             }
             return Token(TokenType::Greater, ">", startLine, startColumn);
+
+        case '?':
+            if (peek() == '.') {
+                advance();
+                return Token(TokenType::QuestionDot, "?.", startLine, startColumn);
+            }
+            if (peek() == '?') {
+                advance();
+                return Token(TokenType::NullishCoalescing, "??", startLine, startColumn);
+            }
+            return Token(TokenType::Question, "?", startLine, startColumn);
 
         default:
             return Token(TokenType::TokUnknown, std::string(1, c), startLine, startColumn);

@@ -123,14 +123,21 @@ std::string Parser::parseTypeSpec() {
             consume(TokenType::Greater, "Expected '>' after generic type arguments.");
             result += ">";
         }
-        if (match(TokenType::LBracket)) {
-            consume(TokenType::RBracket, "Expected ']' after '['.");
-            result += "[]";
-        }
     } else {
-
         throw ParseError("Expected type name.", curToken.line, curToken.column);
     }
+
+    while (true) {
+        if (match(TokenType::Question)) {
+            result += "?";
+        } else if (match(TokenType::LBracket)) {
+            consume(TokenType::RBracket, "Expected ']' after '['.");
+            result += "[]";
+        } else {
+            break;
+        }
+    }
+
     return result;
 }
 
@@ -558,7 +565,19 @@ std::unique_ptr<PrintASTNode> Parser::parsePrint() {
 }
 
 std::unique_ptr<ExpressionNode> Parser::parseExpression() {
-    return parseLogicalOr();
+    return parseNullCoalescing();
+}
+
+std::unique_ptr<ExpressionNode> Parser::parseNullCoalescing() {
+    auto left = parseLogicalOr();
+
+    while (check(TokenType::NullishCoalescing)) {
+        advance();
+        auto right = parseLogicalOr();
+        left = std::make_unique<NullCoalesceASTNode>(std::move(left), std::move(right));
+    }
+
+    return left;
 }
 
 std::unique_ptr<ExpressionNode> Parser::parseLogicalOr() {
@@ -653,9 +672,37 @@ std::unique_ptr<ExpressionNode> Parser::parseUnary() {
 
 std::unique_ptr<ExpressionNode> Parser::parsePostfix(std::unique_ptr<ExpressionNode> expr) {
     while (true) {
-        if (match(TokenType::Dot)) {
-            Token memTok = consume(TokenType::Identifier, "Expected member name after '.'.");
+        if (match(TokenType::Question)) {
+            expr = std::make_unique<TryExprASTNode>(std::move(expr));
+        } else if (match(TokenType::QuestionDot)) {
+            Token memTok = consume(TokenType::Identifier, "Expected member name after '?.'.");
             if (match(TokenType::LParen)) {
+                std::vector<std::unique_ptr<ExpressionNode>> args;
+                if (!check(TokenType::RParen)) {
+                    do {
+                        args.push_back(parseExpression());
+                    } while (match(TokenType::Comma));
+                }
+                consume(TokenType::RParen, "Expected ')' after method call arguments.");
+                expr = std::make_unique<OptionalChainASTNode>(std::move(expr), memTok.lexeme, true, std::move(args));
+            } else {
+                expr = std::make_unique<OptionalChainASTNode>(std::move(expr), memTok.lexeme, false);
+            }
+        } else if (match(TokenType::Dot)) {
+            Token memTok = consume(TokenType::Identifier, "Expected member name after '.'.");
+            if (expr->getType() == NodeType::VariableExpr && std::isupper(static_cast<VariableExprASTNode*>(expr.get())->getName()[0])) {
+                std::string enumName = static_cast<VariableExprASTNode*>(expr.get())->getName();
+                std::vector<std::unique_ptr<ExpressionNode>> args;
+                if (match(TokenType::LParen)) {
+                    if (!check(TokenType::RParen)) {
+                        do {
+                            args.push_back(parseExpression());
+                        } while (match(TokenType::Comma));
+                    }
+                    consume(TokenType::RParen, "Expected ')' after variant arguments.");
+                }
+                expr = std::make_unique<EnumVariantExprASTNode>(enumName, memTok.lexeme, std::move(args));
+            } else if (match(TokenType::LParen)) {
                 std::vector<std::unique_ptr<ExpressionNode>> args;
                 if (!check(TokenType::RParen)) {
                     do {
@@ -708,6 +755,9 @@ std::unique_ptr<ExpressionNode> Parser::parsePrimary() {
     } else if (check(TokenType::KwFalse)) {
         advance();
         expr = std::make_unique<BooleanLiteralASTNode>(false);
+    } else if (check(TokenType::KwNull)) {
+        advance();
+        expr = std::make_unique<NullLiteralASTNode>();
     } else if (check(TokenType::KwMatch)) {
         expr = parseMatch();
     } else if (check(TokenType::LBracket)) {

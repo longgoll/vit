@@ -64,6 +64,10 @@ bool SemanticAnalyzer::analyze(ProgramASTNode* program) {
 void SemanticAnalyzer::visit(ProgramASTNode* node) {
     enterScope();
 
+    // Register built-in safety functions
+    functionTable["panic"] = {"void", {"string"}};
+    functionTable["assert"] = {"void", {"boolean", "string"}};
+
     // First pass: Register structs and function signatures
     for (const auto& stmt : node->getTopLevelStatements()) {
         if (stmt->getType() == NodeType::StructDecl) {
@@ -539,6 +543,80 @@ void SemanticAnalyzer::visit(ExpressionStmtASTNode* node) {
     if (node->getExpression()) {
         node->getExpression()->accept(this);
     }
+}
+
+void SemanticAnalyzer::visit(NullLiteralASTNode* node) {
+    lastInferredType = "null";
+}
+
+void SemanticAnalyzer::visit(TryExprASTNode* node) {
+    if (node->getExpr()) {
+        node->getExpr()->accept(this);
+    }
+    std::string type = lastInferredType;
+    if (type.rfind("Result<", 0) == 0) {
+        size_t commaPos = type.find(',');
+        if (commaPos != std::string::npos) {
+            type = type.substr(7, commaPos - 7);
+        } else {
+            type = type.substr(7, type.length() - 8);
+        }
+    } else if (type.rfind("Option<", 0) == 0) {
+        type = type.substr(7, type.length() - 8);
+    } else if (!type.empty() && type.back() == '?') {
+        type.pop_back();
+    }
+    lastInferredType = type;
+}
+
+void SemanticAnalyzer::visit(OptionalChainASTNode* node) {
+    if (node->getTarget()) {
+        node->getTarget()->accept(this);
+    }
+    std::string targetType = lastInferredType;
+    if (!targetType.empty() && targetType.back() == '?') {
+        targetType.pop_back();
+    }
+
+    std::string resType = "unknown";
+    auto sIt = structTable.find(targetType);
+    if (sIt != structTable.end()) {
+        for (const auto& field : sIt->second) {
+            if (field.first == node->getMember()) {
+                resType = field.second;
+                break;
+            }
+        }
+    }
+    auto mIt = structMethodsTable.find(targetType);
+    if (mIt != structMethodsTable.end()) {
+        auto methodIt = mIt->second.find(node->getMember());
+        if (methodIt != mIt->second.end()) {
+            resType = methodIt->second.first;
+        }
+    }
+    for (const auto& arg : node->getArgs()) {
+        arg->accept(this);
+    }
+    if (!resType.empty() && resType.back() != '?') {
+        resType += "?";
+    }
+    lastInferredType = resType;
+}
+
+void SemanticAnalyzer::visit(NullCoalesceASTNode* node) {
+    std::string leftType;
+    if (node->getLeft()) {
+        node->getLeft()->accept(this);
+        leftType = lastInferredType;
+    }
+    if (node->getRight()) {
+        node->getRight()->accept(this);
+    }
+    if (!leftType.empty() && leftType.back() == '?') {
+        leftType.pop_back();
+    }
+    lastInferredType = leftType.empty() ? lastInferredType : leftType;
 }
 
 } // namespace vit

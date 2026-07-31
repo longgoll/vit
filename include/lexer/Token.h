@@ -31,6 +31,7 @@ enum class TokenType {
     KwType,     // type
     KwEnum,     // enum
     KwMatch,    // match
+    KwNull,     // null
 
     // Identifiers & Literals
     Identifier,    // e.g. add, main, x, number
@@ -38,22 +39,25 @@ enum class TokenType {
     StringLiteral, // e.g. "hello world"
 
     // Operators
-    Plus,         // +
-    Minus,        // -
-    Star,         // *
-    Slash,        // /
-    Equal,        // =
-    EqualEqual,   // ==
-    NotEqual,     // !=
-    Less,         // <
-    Greater,      // >
-    LessEqual,    // <=
-    GreaterEqual, // >=
-    AndAnd,       // &&
-    PipePipe,     // ||
-    Exclamation,  // !
-    Dot,          // .
-    Arrow,        // =>
+    Plus,               // +
+    Minus,              // -
+    Star,               // *
+    Slash,              // /
+    Equal,              // =
+    EqualEqual,         // ==
+    NotEqual,           // !=
+    Less,               // <
+    Greater,            // >
+    LessEqual,          // <=
+    GreaterEqual,       // >=
+    AndAnd,             // &&
+    PipePipe,           // ||
+    Exclamation,        // !
+    Dot,                // .
+    Arrow,              // =>
+    Question,           // ?
+    QuestionDot,        // ?.
+    NullishCoalescing,  // ??
 
     // Delimiters
     LParen,    // (
@@ -106,6 +110,7 @@ inline std::string_view tokenTypeToString(TokenType type) {
         case TokenType::KwType: return "type";
         case TokenType::KwEnum: return "enum";
         case TokenType::KwMatch: return "match";
+        case TokenType::KwNull: return "null";
         case TokenType::Identifier: return "Identifier";
         case TokenType::NumberLiteral: return "NumberLiteral";
         case TokenType::StringLiteral: return "StringLiteral";
@@ -125,6 +130,9 @@ inline std::string_view tokenTypeToString(TokenType type) {
         case TokenType::Exclamation: return "!";
         case TokenType::Dot: return ".";
         case TokenType::Arrow: return "=>";
+        case TokenType::Question: return "?";
+        case TokenType::QuestionDot: return "?.";
+        case TokenType::NullishCoalescing: return "??";
         case TokenType::LParen: return "(";
         case TokenType::RParen: return ")";
         case TokenType::LBrace: return "{";

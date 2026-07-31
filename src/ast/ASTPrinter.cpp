@@ -397,5 +397,39 @@ void ASTPrinter::visit(ExpressionStmtASTNode* node) {
     }
 }
 
+void ASTPrinter::visit(NullLiteralASTNode* node) {
+    printIndent();
+    out << "[NullLiteralASTNode]\n";
+}
+
+void ASTPrinter::visit(TryExprASTNode* node) {
+    printIndent();
+    out << "[TryExprASTNode]\n";
+    if (node->getExpr()) {
+        indentLevel++;
+        node->getExpr()->accept(this);
+        indentLevel--;
+    }
+}
+
+void ASTPrinter::visit(OptionalChainASTNode* node) {
+    printIndent();
+    out << "[OptionalChainASTNode] member: " << node->getMember() << "\n";
+    if (node->getTarget()) {
+        indentLevel++;
+        node->getTarget()->accept(this);
+        indentLevel--;
+    }
+}
+
+void ASTPrinter::visit(NullCoalesceASTNode* node) {
+    printIndent();
+    out << "[NullCoalesceASTNode]\n";
+    indentLevel++;
+    if (node->getLeft()) node->getLeft()->accept(this);
+    if (node->getRight()) node->getRight()->accept(this);
+    indentLevel--;
+}
+
 } // namespace vit
 

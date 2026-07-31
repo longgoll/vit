@@ -1,0 +1,23 @@
+struct User {
+    id: number,
+    name: string
+}
+
+function main(): number {
+    print("=== Testing Null Safety & Operators ===");
+    let u: User? = null;
+
+    let defaultName = "Guest";
+    let name = u?.name ?? defaultName;
+    print(name);
+
+    let activeUser: User;
+    activeUser.id = 1.0;
+    activeUser.name = "Alice";
+
+    let activePtr: User? = activeUser;
+    let activeName = activePtr?.name ?? defaultName;
+    print(activeName);
+
+    return 0;
+}

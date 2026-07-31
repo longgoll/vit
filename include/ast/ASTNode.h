@@ -48,7 +48,11 @@ enum class NodeType {
     EnumDecl,
     EnumVariantExpr,
     Match,
-    ExpressionStmt
+    ExpressionStmt,
+    NullLiteral,
+    TryExpr,
+    OptionalChain,
+    NullCoalesce
 };
 
 // Base class for all AST nodes

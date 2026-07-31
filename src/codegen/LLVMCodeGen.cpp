@@ -25,8 +25,16 @@ std::string LLVMCodeGen::resolveType(const std::string& typeName) const {
 
 std::string LLVMCodeGen::getLLVMType(const std::string& vitTypeRaw) {
     std::string vitType = resolveType(vitTypeRaw);
+    if (!vitType.empty() && vitType.back() == '?') {
+        vitType.pop_back();
+    }
+    size_t anglePos = vitType.find('<');
+    if (anglePos != std::string::npos) {
+        vitType = vitType.substr(0, anglePos);
+    }
     if (vitType == "boolean") return "i1";
     if (vitType == "string") return "i8*";
+    if (vitType == "null") return "i8*";
     if (vitType == "void") return "void";
     if (vitType.size() > 2 && vitType.substr(vitType.size() - 2) == "[]") {
         return "double*"; // Pointer to heap array
@@ -42,7 +50,6 @@ std::string LLVMCodeGen::getLLVMType(const std::string& vitTypeRaw) {
         return "%struct." + vitType + "*";
     }
     return "double";
-
 }
 
 std::string LLVMCodeGen::generateIR(ProgramASTNode* program) {
@@ -76,7 +83,8 @@ std::string LLVMCodeGen::generateIR(ProgramASTNode* program) {
     fullModule << "@.fmt_num = private unnamed_addr constant [4 x i8] c\"%f\\0A\\00\", align 1\n";
     fullModule << "@.fmt_str = private unnamed_addr constant [4 x i8] c\"%s\\0A\\00\", align 1\n";
     fullModule << "@.fmt_bool_true = private unnamed_addr constant [6 x i8] c\"true\\0A\\00\", align 1\n";
-    fullModule << "@.fmt_bool_false = private unnamed_addr constant [7 x i8] c\"false\\0A\\00\", align 1\n\n";
+    fullModule << "@.fmt_bool_false = private unnamed_addr constant [7 x i8] c\"false\\0A\\00\", align 1\n";
+    fullModule << "@.str.bounds_panic = private unnamed_addr constant [21 x i8] c\"Index out of bounds\\0A\\00\", align 1\n\n";
 
     fullModule << globalDefsStream.str();
     if (!globalDefsStream.str().empty()) fullModule << "\n";
@@ -87,7 +95,16 @@ std::string LLVMCodeGen::generateIR(ProgramASTNode* program) {
     fullModule << "declare i64 @strlen(i8*)\n";
     fullModule << "declare i32 @strcmp(i8*, i8*)\n";
     fullModule << "declare i8* @strcpy(i8*, i8*)\n";
-    fullModule << "declare i8* @strcat(i8*, i8*)\n\n";
+    fullModule << "declare i8* @strcat(i8*, i8*)\n";
+    fullModule << "declare void @exit(i32)\n\n";
+
+    fullModule << "define void @__vit_panic(i8* %msg) {\n";
+    fullModule << "  %fmt = getelementptr inbounds [4 x i8], [4 x i8]* @.fmt_str, i64 0, i64 0\n";
+    fullModule << "  %call = call i32 (i8*, ...) @printf(i8* %fmt, i8* %msg)\n";
+    fullModule << "  call void @exit(i32 1)\n";
+    fullModule << "  unreachable\n";
+    fullModule << "}\n\n";
+
     fullModule << irStream.str();
 
     return fullModule.str();
@@ -128,7 +145,7 @@ void LLVMCodeGen::visit(ProgramASTNode* node) {
         } else if (stmt->getType() == NodeType::EnumDecl) {
             auto enumDecl = static_cast<EnumDeclASTNode*>(stmt.get());
             enums.insert(enumDecl->getName());
-            globalDefsStream << "%struct." << enumDecl->getName() << " = type { i32, i8* }\n";
+            globalDefsStream << "%struct." << enumDecl->getName() << " = type { i32, [8 x i8] }\n";
         }
 
     }
@@ -601,6 +618,35 @@ void LLVMCodeGen::visit(ArrayAccessASTNode* node) {
         irStream << idxI64 << " = fptosi double " << idxReg << " to i64\n";
     }
 
+    std::string headerPtr = newReg();
+    emitIndent();
+    irStream << headerPtr << " = getelementptr inbounds double, double* " << arrPtrReg << ", i64 -1\n";
+    std::string lenDbl = newReg();
+    emitIndent();
+    irStream << lenDbl << " = load double, double* " << headerPtr << ", align 8\n";
+    std::string lenI64 = newReg();
+    emitIndent();
+    irStream << lenI64 << " = fptosi double " << lenDbl << " to i64\n";
+
+    std::string isOutOfBounds = newReg();
+    emitIndent();
+    irStream << isOutOfBounds << " = icmp uge i64 " << idxI64 << ", " << lenI64 << "\n";
+
+    std::string okLabel = newLabel("bounds.ok");
+    std::string panicLabel = newLabel("bounds.panic");
+
+    emitIndent();
+    irStream << "br i1 " << isOutOfBounds << ", label %" << panicLabel << ", label %" << okLabel << "\n\n";
+
+    irStream << panicLabel << ":\n";
+    emitIndent();
+    irStream << "call void @__vit_panic(i8* getelementptr inbounds ([21 x i8], [21 x i8]* @.str.bounds_panic, i64 0, i64 0))\n";
+    emitIndent();
+    irStream << "unreachable\n\n";
+
+    irStream << okLabel << ":\n";
+    currentBlockLabel = okLabel;
+
     std::string gepReg = newReg();
     emitIndent();
     irStream << gepReg << " = getelementptr inbounds double, double* " << arrPtrReg << ", i64 " << idxI64 << "\n";
@@ -1072,6 +1118,41 @@ void LLVMCodeGen::visit(CallExprASTNode* node) {
         argTypes.push_back(lastResultType);
     }
 
+    if (node->getCallee() == "panic" && !argRegs.empty()) {
+        emitIndent();
+        irStream << "call void @__vit_panic(i8* " << argRegs[0] << ")\n";
+        lastResultReg = "";
+        lastResultType = "void";
+        return;
+    }
+
+    if (node->getCallee() == "assert" && argRegs.size() >= 2) {
+        std::string passLabel = newLabel("assert.pass");
+        std::string failLabel = newLabel("assert.fail");
+
+        std::string condI1 = argRegs[0];
+        if (argTypes[0] == "number") {
+            condI1 = newReg();
+            emitIndent();
+            irStream << condI1 << " = fcmp one double " << argRegs[0] << ", 0.000000e+00\n";
+        }
+
+        emitIndent();
+        irStream << "br i1 " << condI1 << ", label %" << passLabel << ", label %" << failLabel << "\n\n";
+
+        irStream << failLabel << ":\n";
+        emitIndent();
+        irStream << "call void @__vit_panic(i8* " << argRegs[1] << ")\n";
+        emitIndent();
+        irStream << "unreachable\n\n";
+
+        irStream << passLabel << ":\n";
+        currentBlockLabel = passLabel;
+        lastResultReg = "";
+        lastResultType = "void";
+        return;
+    }
+
     auto it = functionReturnTypes.find(node->getCallee());
     if (it != functionReturnTypes.end()) {
         std::string retType = it->second;
@@ -1252,9 +1333,7 @@ void LLVMCodeGen::visit(ReturnASTNode* node) {
             return;
         }
 
-        std::string targetLLVMType = (currentFunctionReturnType == "boolean") ? "i1" :
-                                     (currentFunctionReturnType == "string") ? "i8*" :
-                                     (currentFunctionReturnType == "void") ? "void" : "double";
+        std::string targetLLVMType = getLLVMType(currentFunctionReturnType);
 
         if (targetLLVMType == "i1" && retType == "number") {
             std::string converted = newReg();
@@ -1595,8 +1674,8 @@ void LLVMCodeGen::visit(MethodCallASTNode* node) {
 }
 
 void LLVMCodeGen::visit(EnumDeclASTNode* node) {
-    // Enum represented as { i32 tag, i8* payload }
-    globalDefsStream << "%struct." << node->getName() << " = type { i32, i8* }\n";
+    // Enum represented as { i32 tag, [8 x i8] payload }
+    globalDefsStream << "%struct." << node->getName() << " = type { i32, [8 x i8] }\n";
 }
 
 void LLVMCodeGen::visit(EnumVariantExprASTNode* node) {
@@ -1607,13 +1686,27 @@ void LLVMCodeGen::visit(EnumVariantExprASTNode* node) {
     emitIndent();
     irStream << enumPtr << " = bitcast i8* " << mallocCall << " to %struct." << node->getEnumName() << "*\n";
 
-    // Store tag
-    int tagIndex = 0; // default tag index
+    int tagIndex = (node->getVariantName() == "Some" || node->getVariantName() == "Ok") ? 0 : 1;
+
     std::string tagPtr = newReg();
     emitIndent();
     irStream << tagPtr << " = getelementptr inbounds %struct." << node->getEnumName() << ", %struct." << node->getEnumName() << "* " << enumPtr << ", i32 0, i32 0\n";
     emitIndent();
     irStream << "store i32 " << tagIndex << ", i32* " << tagPtr << "\n";
+
+    if (!node->getArgs().empty()) {
+        node->getArgs()[0]->accept(this);
+        std::string argReg = lastResultReg;
+
+        std::string payloadPtr = newReg();
+        emitIndent();
+        irStream << payloadPtr << " = getelementptr inbounds %struct." << node->getEnumName() << ", %struct." << node->getEnumName() << "* " << enumPtr << ", i32 0, i32 1\n";
+        std::string payloadDblPtr = newReg();
+        emitIndent();
+        irStream << payloadDblPtr << " = bitcast [8 x i8]* " << payloadPtr << " to double*\n";
+        emitIndent();
+        irStream << "store double " << argReg << ", double* " << payloadDblPtr << ", align 8\n";
+    }
 
     lastResultReg = enumPtr;
     lastResultType = node->getEnumName();
@@ -1684,6 +1777,219 @@ void LLVMCodeGen::visit(ExpressionStmtASTNode* node) {
     if (node->getExpression()) {
         node->getExpression()->accept(this);
     }
+}
+
+void LLVMCodeGen::visit(NullLiteralASTNode* node) {
+    lastResultReg = "null";
+    lastResultType = "null";
+}
+
+void LLVMCodeGen::visit(TryExprASTNode* node) {
+    if (node->getExpr()) {
+        node->getExpr()->accept(this);
+    }
+    std::string innerReg = lastResultReg;
+    std::string innerType = lastResultType;
+
+    std::string cleanType = innerType;
+    if (!cleanType.empty() && cleanType.back() == '?') cleanType.pop_back();
+    size_t anglePos = cleanType.find('<');
+    if (anglePos != std::string::npos) cleanType = cleanType.substr(0, anglePos);
+
+    std::string okLabel = newLabel("try.ok");
+    std::string errLabel = newLabel("try.err");
+
+    if (cleanType.rfind("Option", 0) == 0 || cleanType.rfind("Result", 0) == 0 || enums.count(cleanType) || structs.count(cleanType)) {
+        std::string tagPtr = newReg();
+        emitIndent();
+        irStream << tagPtr << " = getelementptr inbounds %struct." << cleanType << ", %struct." << cleanType << "* " << innerReg << ", i32 0, i32 0\n";
+        std::string tagVal = newReg();
+        emitIndent();
+        irStream << tagVal << " = load i32, i32* " << tagPtr << ", align 4\n";
+
+        std::string isErr = newReg();
+        emitIndent();
+        irStream << isErr << " = icmp ne i32 " << tagVal << ", 0\n";
+
+        emitIndent();
+        irStream << "br i1 " << isErr << ", label %" << errLabel << ", label %" << okLabel << "\n\n";
+
+        irStream << errLabel << ":\n";
+        currentBlockLabel = errLabel;
+        emitIndent();
+        std::string llvmRetType = getLLVMType(currentFunctionReturnType);
+        if (llvmRetType == "void") {
+            irStream << "ret void\n";
+        } else if (llvmRetType == "i1") {
+            irStream << "ret i1 false\n";
+        } else if (llvmRetType == "i8*" || (!llvmRetType.empty() && llvmRetType.back() == '*')) {
+            irStream << "ret " << llvmRetType << " null\n";
+        } else {
+            irStream << "ret double 0.000000e+00\n";
+        }
+
+        irStream << okLabel << ":\n";
+        currentBlockLabel = okLabel;
+
+        std::string payloadPtr = newReg();
+        emitIndent();
+        irStream << payloadPtr << " = getelementptr inbounds %struct." << cleanType << ", %struct." << cleanType << "* " << innerReg << ", i32 0, i32 1\n";
+        std::string payloadDblPtr = newReg();
+        emitIndent();
+        irStream << payloadDblPtr << " = bitcast [8 x i8]* " << payloadPtr << " to double*\n";
+        std::string payloadVal = newReg();
+        emitIndent();
+        irStream << payloadVal << " = load double, double* " << payloadDblPtr << ", align 8\n";
+
+        lastResultReg = payloadVal;
+        lastResultType = "number";
+    } else {
+        // Nullable pointer try check
+        std::string isNull = newReg();
+        emitIndent();
+        irStream << isNull << " = icmp eq i8* " << innerReg << ", null\n";
+        emitIndent();
+        irStream << "br i1 " << isNull << ", label %" << errLabel << ", label %" << okLabel << "\n\n";
+
+        irStream << errLabel << ":\n";
+        currentBlockLabel = errLabel;
+        emitIndent();
+        std::string llvmRetType = getLLVMType(currentFunctionReturnType);
+        if (llvmRetType == "void") {
+            irStream << "ret void\n";
+        } else if (llvmRetType == "i8*" || (!llvmRetType.empty() && llvmRetType.back() == '*')) {
+            irStream << "ret " << llvmRetType << " null\n";
+        } else {
+            irStream << "ret double 0.000000e+00\n";
+        }
+
+        irStream << okLabel << ":\n";
+        currentBlockLabel = okLabel;
+        lastResultReg = innerReg;
+        lastResultType = innerType;
+    }
+}
+
+void LLVMCodeGen::visit(OptionalChainASTNode* node) {
+    if (node->getTarget()) {
+        node->getTarget()->accept(this);
+    }
+    std::string targetReg = lastResultReg;
+    std::string targetType = lastResultType;
+
+    std::string cleanType = targetType;
+    if (!cleanType.empty() && cleanType.back() == '?') cleanType.pop_back();
+    size_t anglePos = cleanType.find('<');
+    if (anglePos != std::string::npos) cleanType = cleanType.substr(0, anglePos);
+
+    std::string nullLabel = newLabel("opt.null");
+    std::string validLabel = newLabel("opt.valid");
+    std::string mergeLabel = newLabel("opt.merge");
+
+    std::string isNull = newReg();
+    emitIndent();
+    std::string llvmTargetType = getLLVMType(targetType);
+    if (llvmTargetType == "i8*" || (!llvmTargetType.empty() && llvmTargetType.back() == '*')) {
+        irStream << isNull << " = icmp eq " << llvmTargetType << " " << targetReg << ", null\n";
+    } else {
+        irStream << isNull << " = fcmp oeq double " << targetReg << ", 0.000000e+00\n";
+    }
+
+    emitIndent();
+    irStream << "br i1 " << isNull << ", label %" << nullLabel << ", label %" << validLabel << "\n\n";
+
+    irStream << nullLabel << ":\n";
+    currentBlockLabel = nullLabel;
+    emitIndent();
+    irStream << "br label %" << mergeLabel << "\n\n";
+
+    irStream << validLabel << ":\n";
+    currentBlockLabel = validLabel;
+
+    std::string validValReg = "0.0";
+    std::string validValType = "number";
+    auto it = structs.find(cleanType);
+    if (it != structs.end()) {
+        int idx = it->second.fieldIndices[node->getMember()];
+        std::string fieldType = it->second.fields[idx].second;
+        std::string llvmFieldType = getLLVMType(fieldType);
+
+        std::string gepReg = newReg();
+        emitIndent();
+        irStream << gepReg << " = getelementptr inbounds %struct." << cleanType << ", %struct." << cleanType << "* " << targetReg << ", i32 0, i32 " << idx << "\n";
+
+        validValReg = newReg();
+        emitIndent();
+        irStream << validValReg << " = load " << llvmFieldType << ", " << llvmFieldType << "* " << gepReg << ", align 8\n";
+        validValType = fieldType;
+    }
+
+    std::string validBlock = currentBlockLabel;
+    emitIndent();
+    irStream << "br label %" << mergeLabel << "\n\n";
+
+    irStream << mergeLabel << ":\n";
+    currentBlockLabel = mergeLabel;
+    std::string llvmResultType = getLLVMType(validValType);
+    std::string phiReg = newReg();
+    emitIndent();
+    std::string nullValStr = (llvmResultType == "i8*" || (!llvmResultType.empty() && llvmResultType.back() == '*')) ? "null" : "0.000000e+00";
+    irStream << phiReg << " = phi " << llvmResultType << " [ " << nullValStr << ", %" << nullLabel << " ], [ " << validValReg << ", %" << validBlock << " ]\n";
+
+    lastResultReg = phiReg;
+    lastResultType = validValType;
+}
+
+void LLVMCodeGen::visit(NullCoalesceASTNode* node) {
+    if (node->getLeft()) {
+        node->getLeft()->accept(this);
+    }
+    std::string leftReg = lastResultReg;
+    std::string leftType = lastResultType;
+
+    std::string nullLabel = newLabel("nc.null");
+    std::string validLabel = newLabel("nc.valid");
+    std::string mergeLabel = newLabel("nc.merge");
+
+    std::string isNull = newReg();
+    emitIndent();
+    std::string llvmLeftType = getLLVMType(leftType);
+    if (llvmLeftType == "i8*" || (!llvmLeftType.empty() && llvmLeftType.back() == '*')) {
+        irStream << isNull << " = icmp eq " << llvmLeftType << " " << leftReg << ", null\n";
+    } else {
+        irStream << isNull << " = fcmp oeq double " << leftReg << ", 0.000000e+00\n";
+    }
+
+    emitIndent();
+    irStream << "br i1 " << isNull << ", label %" << nullLabel << ", label %" << validLabel << "\n\n";
+
+    irStream << nullLabel << ":\n";
+    currentBlockLabel = nullLabel;
+    if (node->getRight()) {
+        node->getRight()->accept(this);
+    }
+    std::string rightReg = lastResultReg;
+    std::string rightType = lastResultType;
+    std::string rhsBlock = currentBlockLabel;
+    emitIndent();
+    irStream << "br label %" << mergeLabel << "\n\n";
+
+    irStream << validLabel << ":\n";
+    currentBlockLabel = validLabel;
+    std::string lhsBlock = validLabel;
+    emitIndent();
+    irStream << "br label %" << mergeLabel << "\n\n";
+
+    irStream << mergeLabel << ":\n";
+    currentBlockLabel = mergeLabel;
+
+    std::string llvmResType = getLLVMType(rightType);
+    std::string phiReg = newReg();
+    emitIndent();
+    irStream << phiReg << " = phi " << llvmResType << " [ " << leftReg << ", %" << lhsBlock << " ], [ " << rightReg << ", %" << rhsBlock << " ]\n";
+
+    lastResultReg = phiReg;
+    lastResultType = rightType;
 }
 
 } // namespace vit
