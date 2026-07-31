@@ -1,0 +1,13 @@
+function processData(): void {
+    let localStr: string = "Temporary String Buffer";
+    let localArr: number[] = [1.0, 2.0, 3.0, 4.0];
+    let sum: number = 0;
+    for (let i = 0; i < 4; i = i + 1) {
+        sum = sum + localArr[i];
+    }
+    print("Local Sum: " + sum);
+}
+
+function main(): void {
+    processData();
+}

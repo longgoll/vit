@@ -1,6 +1,7 @@
 #include "ast/ASTPrinter.h"
 #include "codegen/LLVMCodeGen.h"
 #include "codegen/NativeCompiler.h"
+#include "codegen/EscapeAnalysis.h"
 #include "diagnostics/DiagnosticPrinter.h"
 #include "lexer/Lexer.h"
 #include "parser/Parser.h"
@@ -25,7 +26,7 @@
 
 using namespace vit;
 
-const std::string VIT_VERSION = "1.3.0 (Phase 13 - Developer Experience & Ecosystem)";
+const std::string VIT_VERSION = "2.0.0 (Phase 14 - Cross-Compilation, WASM & Optimizations)";
 
 void printUsage(const char* progName) {
     std::cout << "VIT Language Compiler & Ecosystem v" << VIT_VERSION << "\n\n";
@@ -46,17 +47,18 @@ void printUsage(const char* progName) {
     std::cout << "  version         Display compiler version info\n";
     std::cout << "  help            Show this help message\n\n";
     std::cout << "Options:\n";
-    std::cout << "  -o <output.exe> Specify output executable file path\n";
-    std::cout << "  -O0, -O1, -O2   Native compiler optimization levels\n";
-    std::cout << "  --emit-ast      Print Abstract Syntax Tree (AST) to console\n";
-    std::cout << "  --emit-llvm     Print LLVM IR intermediate representation to console\n";
-    std::cout << "  -h, --help      Display this help message\n\n";
+    std::cout << "  -o <output.exe>        Specify output executable file path\n";
+    std::cout << "  -O0, -O1, -O2, -O3     Native compiler optimization levels\n";
+    std::cout << "  --target <triple>      Cross-compilation target triple (e.g., x86_64-unknown-linux-gnu, wasm32-wasi)\n";
+    std::cout << "  --enable-escape-analysis Enable LLVM ARC Escape Analysis optimization pass\n";
+    std::cout << "  --emit-ast             Print Abstract Syntax Tree (AST) to console\n";
+    std::cout << "  --emit-llvm            Print LLVM IR intermediate representation to console\n";
+    std::cout << "  -h, --help             Display this help message\n\n";
     std::cout << "Examples:\n";
-    std::cout << "  vit init my-app\n";
-    std::cout << "  vit add github.com/user/vit-http\n";
+    std::cout << "  vit build app.vit --target x86_64-unknown-linux-gnu -O3 -o app_linux\n";
+    std::cout << "  vit build app.vit --target wasm32-wasi -o app.wasm\n";
+    std::cout << "  vit build app.vit -O3 --enable-escape-analysis\n";
     std::cout << "  vit repl\n";
-    std::cout << "  vit fmt src/main.vit\n";
-    std::cout << "  vit lint src/main.vit\n";
 }
 
 void printVersion() {
@@ -273,6 +275,9 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    std::string targetTriple;
+    bool enableEscapeAnalysis = false;
+
     // Parse remaining arguments
     for (int i = startIndex; i < argc; ++i) {
         std::string arg = argv[i];
@@ -282,6 +287,10 @@ int main(int argc, char* argv[]) {
         } else if (arg == "-o" && i + 1 < argc) {
             outputExePath = argv[++i];
             customOutput = true;
+        } else if (arg == "--target" && i + 1 < argc) {
+            targetTriple = argv[++i];
+        } else if (arg == "--enable-escape-analysis") {
+            enableEscapeAnalysis = true;
         } else if (arg == "-O0" || arg == "-O1" || arg == "-O2" || arg == "-O3") {
             optLevel = arg;
         } else if (arg == "--emit-ast") {
@@ -308,7 +317,11 @@ int main(int argc, char* argv[]) {
         if (lastDot != std::string::npos) {
             baseName = baseName.substr(0, lastDot);
         }
-        outputExePath = baseName + ".exe";
+        if (targetTriple.find("wasm32") != std::string::npos) {
+            outputExePath = baseName + ".wasm";
+        } else {
+            outputExePath = baseName + ".exe";
+        }
     }
 
     // Read source code from file
@@ -322,7 +335,11 @@ int main(int argc, char* argv[]) {
     std::string sourceCode = buffer.str();
 
     if (mode == Mode::BUILD) {
-        std::cout << "\033[36m[VIT]\033[0m Compiling " << sourceFilePath << " ...\n";
+        std::cout << "\033[36m[VIT]\033[0m Compiling " << sourceFilePath;
+        if (!targetTriple.empty()) {
+            std::cout << " (Target: " << targetTriple << ")";
+        }
+        std::cout << " ...\n";
     }
 
     try {
@@ -358,9 +375,16 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
+        // 2.5 LLVM ARC Escape Analysis Pass (if enabled)
+        if (enableEscapeAnalysis) {
+            EscapeAnalyzer escapeAnalyzer;
+            auto escapeResult = escapeAnalyzer.analyze(programAST.get());
+            std::cout << escapeResult.report << "\n";
+        }
+
         // 3. Code Generation (LLVM IR)
         LLVMCodeGen codeGen;
-        std::string llvmIR = codeGen.generateIR(programAST.get());
+        std::string llvmIR = codeGen.generateIR(programAST.get(), targetTriple);
 
         if (emitLLVM) {
             std::cout << "\n--- Generated LLVM IR Code ---\n";
@@ -377,18 +401,26 @@ int main(int argc, char* argv[]) {
 
         // 3. Native Binary Compilation
         NativeCompiler nativeCompiler;
-        bool compileSuccess = nativeCompiler.compileIRToExecutable(irFilePath, outputExePath, optLevel);
+        bool compileSuccess = nativeCompiler.compileIRToExecutable(irFilePath, outputExePath, optLevel, targetTriple);
 
         if (!compileSuccess) {
             return 1;
         }
 
         if (mode == Mode::BUILD) {
-            std::cout << "\033[32m✓\033[0m Built \033[1m" << outputExePath << "\033[0m successfully (" << optLevel << ").\n";
+            std::cout << "\033[32m✓\033[0m Built \033[1m" << outputExePath << "\033[0m successfully (" << optLevel;
+            if (!targetTriple.empty()) {
+                std::cout << ", target: " << targetTriple;
+            }
+            std::cout << ").\n";
         }
 
         // 4. If mode is RUN (or `vit run`), execute binary immediately
         if (mode == Mode::RUN) {
+            if (targetTriple.find("wasm32") != std::string::npos || targetTriple.find("linux") != std::string::npos || targetTriple.find("darwin") != std::string::npos) {
+                std::cout << "\033[33m[VIT Notice]\033[0m Binary built for cross-target '" << targetTriple << "'. Skipping direct execution.\n";
+                return 0;
+            }
             nativeCompiler.runExecutable(outputExePath);
             return 0;
         }

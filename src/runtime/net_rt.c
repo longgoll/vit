@@ -1,9 +1,28 @@
 #include "net_rt.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
+void* malloc(size_t size);
+void free(void* ptr);
+void exit(int status);
+int atoi(const char* str);
+
 #ifdef _WIN32
+    #ifndef __X86INTRIN_H
+    #define __X86INTRIN_H
+    #endif
+    #ifndef _X86INTRIN_H_INCLUDED
+    #define _X86INTRIN_H_INCLUDED
+    #endif
+    #ifndef _X86INTRIN_H_
+    #define _X86INTRIN_H_
+    #endif
+    #ifndef _EMMINTRIN_H_INCLUDED
+    #define _EMMINTRIN_H_INCLUDED
+    #endif
+    #ifndef _EMMINTRIN_H_
+    #define _EMMINTRIN_H_
+    #endif
     #include <winsock2.h>
     #include <ws2tcpip.h>
     #pragma comment(lib, "ws2_32.lib")

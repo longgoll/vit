@@ -1,71 +1,40 @@
-#ifndef VIT_LLVM_CODEGEN_H
-#define VIT_LLVM_CODEGEN_H
+#ifndef VIT_ESCAPE_ANALYSIS_H
+#define VIT_ESCAPE_ANALYSIS_H
 
-#include "ast/ASTVisitor.h"
 #include "ast/AST.h"
-#include <sstream>
+#include "ast/ASTVisitor.h"
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
+#include <unordered_map>
 #include <vector>
-
 
 namespace vit {
 
-struct VarSymbol {
-    std::string addrReg;
-    std::string typeName; // "number", "boolean", "string"
+struct EscapeAnalysisResult {
+    int stackAllocatedCount = 0;
+    int eliminatedARCCount = 0;
+    std::vector<std::string> optimizedVars;
+    std::string report;
 };
 
-struct LoopTarget {
-    std::string breakLabel;
-    std::string continueLabel;
-};
-
-struct StructInfo {
-    std::string name;
-    std::vector<std::pair<std::string, std::string>> fields;
-    std::unordered_map<std::string, int> fieldIndices;
-};
-
-class LLVMCodeGen : public ASTVisitor {
+class EscapeAnalyzer : public ASTVisitor {
 private:
-    std::stringstream irStream;
-    std::stringstream globalDefsStream;
-    std::string lastResultReg;
-    std::string lastResultType; // "number", "boolean", "string", struct name, array type
     std::string currentFunctionName;
-    std::string currentFunctionReturnType;
-    std::string currentBlockLabel;
-    std::unordered_map<std::string, std::string> functionReturnTypes;
-    std::unordered_map<std::string, StructInfo> structs;
-    std::unordered_set<std::string> enums;
-    std::unordered_set<std::string> declaredFunctions;
-    std::unordered_map<std::string, std::string> typeAliases;
+    std::unordered_set<std::string> localAllocations;
+    std::unordered_set<std::string> escapingVars;
+    std::unordered_set<std::string> globalVars;
 
-    int regCounter = 0;
-    int labelCounter = 0;
-    int stringCounter = 0;
-    int lambdaCounter = 0;
-    bool blockHasTerminator = false;
-    bool currentFunctionIsAsync = false;
-    std::string currentPromiseReg;
+    int totalStackAllocated = 0;
+    int totalARCEliminated = 0;
+    std::vector<std::string> reportLines;
 
-    std::vector<LoopTarget> loopStack;
-    std::vector<std::vector<VarSymbol>> heapScopeStack;
-    std::unordered_map<std::string, VarSymbol> symbolTable;
-
-    std::string newReg();
-    std::string newLabel(const std::string& prefix);
-    std::string resolveType(const std::string& typeName) const;
-    std::string getLLVMType(const std::string& vitType);
-    void emitIndent();
-    void cleanupCurrentScope();
+    void markEscaping(const std::string& varName);
+    void checkExprEscape(ExpressionNode* expr);
 
 public:
-    LLVMCodeGen() = default;
+    EscapeAnalyzer() = default;
 
-    std::string generateIR(ProgramASTNode* program, const std::string& targetTriple = "");
+    EscapeAnalysisResult analyze(ProgramASTNode* program);
 
     void visit(ProgramASTNode* node) override;
     void visit(FunctionDeclASTNode* node) override;
@@ -107,7 +76,6 @@ public:
     void visit(AwaitExprASTNode* node) override;
 };
 
-
 } // namespace vit
 
-#endif // VIT_LLVM_CODEGEN_H
+#endif // VIT_ESCAPE_ANALYSIS_H

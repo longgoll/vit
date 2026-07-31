@@ -1,0 +1,4 @@
+function main(): void {
+    let msg: string = "Hello WebAssembly from VIT!";
+    print(msg);
+}

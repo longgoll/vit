@@ -1,12 +1,17 @@
-# Tổng Quan Chức Năng Đang Có (Current Features & Architecture v0.7.0)
+# Tổng Quan Chức Năng Đang Có (Current Features & Architecture v2.0.0 Release)
 
-Tài liệu này dành cho lập trình viên làm việc trên codebase của dự án **VIT Compiler (v0.7.0)**. Tài liệu mô tả các tính năng ngôn ngữ đã hỗ trợ, kiến trúc codebase, cấu trúc thư mục, và hướng dẫn biên dịch/sử dụng.
+Tài liệu này dành cho lập trình viên làm việc trên codebase của dự án **VIT Compiler (v2.0.0 Release)**. Tài liệu mô tả các tính năng ngôn ngữ đã hỗ trợ, kiến trúc codebase, cấu trúc thư mục, và hướng dẫn biên dịch/sử dụng.
 
 ---
 
 ## 1. Các Chức Năng Ngôn Ngữ Hiện Có (Supported Features)
 
-### 1.1. Kiểu dữ liệu & Biến
+### 1.1. Multi-target Cross-Compilation & WebAssembly (Phase 14)
+* **Cross-Compilation (`--target <triple>`)**: Biên dịch ra file thực thi/mã trung gian cho Linux (`x86_64-unknown-linux-gnu`), macOS (`aarch64-apple-darwin`), Windows (`x86_64-w64-mingw32`).
+* **WebAssembly Target (`wasm32-wasi` / `wasm32`)**: Biên dịch thẳng mã nguồn Vit thành file `.wasm` chạy được trên Web Browser và Serverless Runtimes.
+* **LLVM ARC Escape Analysis Pass (`--enable-escape-analysis`)**: Pass tối ưu hóa đồ thị luồng dữ liệu tự động chuyển phân bổ heap của biến cục bộ thành phân bổ trên Stack (`alloca`) và cắt giảm các thao tác `retain`/`release` thừa.
+
+### 1.2. Kiểu dữ liệu & Biến
 * **Primitive Types**: `number` (float64 IEEE 754 `double`), `boolean` (`true`/`false`), `string`, `void`.
 * **Composite, Generic & Functional Types**:
   * **Generics (Parametric Polymorphism)**: Generic struct `struct Stack<T>`, generic function `function identity<T>(item: T): T` giải quyết tại AST Monomorphization Pass.
@@ -24,7 +29,7 @@ Tài liệu này dành cho lập trình viên làm việc trên codebase của d
   * `const MAX = 100;`
 * **Phép gán**: `x = y + 5;`, `p.x = 10;`, `arr[0] = 99;`, `this.x = 10;`
 
-### 1.2. Functional Programming & Arrow Functions (Lambdas)
+### 1.3. Functional Programming & Arrow Functions (Lambdas)
 * **First-Class Functions**: Hàm là giá trị loại một, có thể gán vào biến, truyền làm tham số, trả về từ hàm.
 * **Lambda / Arrow Functions**:
   * Dạng biểu thức: `let double = (x: number): number => x * 2.0;`

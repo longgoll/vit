@@ -1,0 +1,8 @@
+function calculate(a: number, b: number): number {
+    return a * 2 + b * 3;
+}
+
+function main(): void {
+    let result: number = calculate(10, 20);
+    print("Cross-compile test result: " + result);
+}
