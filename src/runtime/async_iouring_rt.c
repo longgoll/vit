@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -26,6 +27,7 @@
 #endif
 
 #if defined(__linux__)
+#include <sys/epoll.h>
 #include <sys/syscall.h>
 #include <sys/mman.h>
 
@@ -34,12 +36,6 @@
 #define __NR_io_uring_enter 426
 #define __NR_io_uring_register 427
 #endif
-
-#define IORING_OP_NOP 0
-#define IORING_OP_READV 1
-#define IORING_OP_WRITEV 2
-#define IORING_OP_ACCEPT 13
-#define IORING_OP_PROVIDE_BUFFERS 31
 
 static long sys_io_uring_setup(uint32_t entries, void* p) {
     return syscall(__NR_io_uring_setup, entries, p);
@@ -59,6 +55,83 @@ typedef struct worker_arg {
     void (*handler)(int client_fd, const char* req, size_t len);
 } worker_arg_t;
 
+#if defined(__linux__)
+
+#define MAX_EVENTS 2048
+
+static void set_nonblocking_fd(int fd) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags >= 0) {
+        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    }
+}
+
+static void* worker_thread_loop(void* arg_ptr) {
+    worker_arg_t* warg = (worker_arg_t*)arg_ptr;
+    vit_iouring_worker_t* worker = warg->worker;
+    void (*handler)(int client_fd, const char* req, size_t len) = warg->handler;
+    free(warg);
+
+    int epoll_fd = epoll_create1(0);
+    if (epoll_fd < 0) return 0;
+
+    set_nonblocking_fd(worker->listen_fd);
+
+    struct epoll_event ev, events[MAX_EVENTS];
+    ev.events = EPOLLIN | EPOLLET;
+    ev.data.fd = worker->listen_fd;
+    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, worker->listen_fd, &ev);
+
+    char buf[16384];
+
+    while (worker->running) {
+        int nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, 50);
+        for (int n = 0; n < nfds; n++) {
+            int fd = events[n].data.fd;
+            if (fd == worker->listen_fd) {
+                // Accept all incoming non-blocking client connections
+                while (1) {
+                    struct sockaddr_in client_addr;
+                    socklen_t addr_len = sizeof(client_addr);
+                    int client_fd = accept(worker->listen_fd, (struct sockaddr*)&client_addr, &addr_len);
+                    if (client_fd < 0) break;
+
+                    set_nonblocking_fd(client_fd);
+                    struct epoll_event client_ev;
+                    client_ev.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+                    client_ev.data.fd = client_fd;
+                    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &client_ev);
+                }
+            } else {
+                // High-performance async socket handler
+                while (1) {
+                    ssize_t bytes_read = recv(fd, buf, sizeof(buf) - 1, 0);
+                    if (bytes_read > 0) {
+                        buf[bytes_read] = '\0';
+                        handler(fd, buf, (size_t)bytes_read);
+
+                        // Re-arm connection event for HTTP Keep-Alive
+                        struct epoll_event client_ev;
+                        client_ev.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+                        client_ev.data.fd = fd;
+                        epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &client_ev);
+                    } else if (bytes_read == 0 || (bytes_read < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
+                        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+                        close(fd);
+                        break;
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    close(epoll_fd);
+    return 0;
+}
+
+#else
+
 #ifdef _WIN32
 static DWORD WINAPI worker_thread_loop(LPVOID arg_ptr)
 #else
@@ -73,11 +146,6 @@ static void* worker_thread_loop(void* arg_ptr)
     char buf[16384];
 
     while (worker->running) {
-#if defined(__linux__)
-        if (!worker->ring.is_fallback) {
-            vit_iouring_submit_and_wait(&worker->ring, 0);
-        }
-#endif
         struct sockaddr_in client_addr;
         socklen_t addr_len = sizeof(client_addr);
         int client_fd = (int)accept(worker->listen_fd, (struct sockaddr*)&client_addr, &addr_len);
@@ -103,6 +171,8 @@ static void* worker_thread_loop(void* arg_ptr)
     }
     return 0;
 }
+
+#endif
 
 int vit_iouring_init(vit_iouring_t* ring, uint32_t depth) {
     if (!ring) return -1;
@@ -210,7 +280,7 @@ int vit_iouring_group_start(vit_iouring_worker_group_t* group, void (*handler)(i
         vit_net_socket_set_reuseport(fd, 1);
         vit_net_socket_set_nonblocking(fd, 1);
         if (vit_net_socket_bind(fd, group->host, (double)group->port) == 0) {
-            vit_net_socket_listen(fd, 1024);
+            vit_net_socket_listen(fd, 8192);
             group->workers[i].listen_fd = (int)fd;
             group->workers[i].running = 1;
 
