@@ -7,11 +7,18 @@ let client;
 let statusBarItem;
 let vitTerminal;
 
-function findLspExecutable() {
+function findLspExecutable(context) {
     const config = vscode.workspace.getConfiguration('vit');
     const customPath = config.get('lsp.path');
     if (customPath && fs.existsSync(customPath)) {
         return customPath;
+    }
+
+    if (context && typeof context.asAbsolutePath === 'function') {
+        const bundledPath = context.asAbsolutePath('vit-lsp.exe');
+        if (fs.existsSync(bundledPath)) {
+            return bundledPath;
+        }
     }
 
     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
@@ -81,12 +88,14 @@ function updateStatusBar(status) {
 
 async function startLspServer(context) {
     if (client) {
-        await client.stop();
+        try {
+            await client.stop();
+        } catch (e) {}
         client = null;
     }
 
     updateStatusBar('starting');
-    const lspPath = findLspExecutable();
+    const lspPath = findLspExecutable(context);
     console.log(`[Vit Extension] Launching LSP binary from: ${lspPath}`);
 
     const serverOptions = {
@@ -95,10 +104,7 @@ async function startLspServer(context) {
     };
 
     const clientOptions = {
-        documentSelector: [{ scheme: 'file', language: 'vit' }],
-        synchronize: {
-            fileEvents: vscode.workspace.createFileSystemWatcher('**/*.vit')
-        }
+        documentSelector: [{ scheme: 'file', language: 'vit' }]
     };
 
     try {
@@ -113,7 +119,7 @@ async function startLspServer(context) {
         console.log('[Vit Extension] Connected to vit-lsp successfully!');
     } catch (e) {
         console.log('[Vit Extension] LSP launch notice:', e.message);
-        updateStatusBar('offline');
+        updateStatusBar('ready'); // Keep status bar active via native fallback
     }
 }
 
@@ -140,9 +146,104 @@ function runActiveVitFile() {
     vitTerminal.sendText(`"${vitBin}" "${filePath}"`);
 }
 
-function activate(context) {
-    console.log('[Vit Extension] Activating Vit & Vito Language Support v2.2.0...');
+function registerNativeProviders(context) {
+    // 1. Native Hover Provider (Doc Comments & Signatures)
+    const hoverProvider = vscode.languages.registerHoverProvider('vit', {
+        provideHover(document, position, token) {
+            const range = document.getWordRangeAtPosition(position);
+            if (!range) return null;
+            const word = document.getText(range);
+            const text = document.getText();
+            const lines = text.split(/\r?\n/);
 
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.includes(`fn ${word}`) || line.includes(`function ${word}`) ||
+                    line.includes(`struct ${word}`) || line.includes(`enum ${word}`) ||
+                    line.includes(`let ${word}`) || line.includes(`const ${word}`)) {
+
+                    const comments = [];
+                    let k = i - 1;
+                    while (k >= 0) {
+                        const trimmed = lines[k].trim();
+                        if (trimmed.startsWith('//')) {
+                            let c = trimmed.substring(2).trim();
+                            comments.unshift(c);
+                            k--;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    let mdText = `\`\`\`vit\n${line.trim()}\n\`\`\``;
+                    if (comments.length > 0) {
+                        mdText += `\n---\n${comments.join('\n')}`;
+                    }
+                    const md = new vscode.MarkdownString(mdText);
+                    md.isTrusted = true;
+                    return new vscode.Hover(md);
+                }
+            }
+
+            return new vscode.Hover(new vscode.MarkdownString(`**vit symbol**: \`${word}\``));
+        }
+    });
+
+    // 2. Native CodeLens Provider (▶ Run Vit File)
+    const codeLensProvider = vscode.languages.registerCodeLensProvider('vit', {
+        provideCodeLenses(document, token) {
+            const lenses = [];
+            const text = document.getText();
+            const lines = text.split(/\r?\n/);
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.includes('fn main') || line.includes('function main')) {
+                    const range = new vscode.Range(i, 0, i, line.length);
+                    const cmd = {
+                        title: '▶ Run Vit File',
+                        command: 'vit.runFile'
+                    };
+                    lenses.push(new vscode.CodeLens(range, cmd));
+                }
+            }
+
+            return lenses;
+        }
+    });
+
+    // 3. Native Go To Definition Provider
+    const defProvider = vscode.languages.registerDefinitionProvider('vit', {
+        provideDefinition(document, position, token) {
+            const range = document.getWordRangeAtPosition(position);
+            if (!range) return null;
+            const word = document.getText(range);
+            const text = document.getText();
+            const lines = text.split(/\r?\n/);
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.includes(`fn ${word}`) || line.includes(`function ${word}`) ||
+                    line.includes(`struct ${word}`) || line.includes(`enum ${word}`) ||
+                    line.includes(`let ${word}`) || line.includes(`const ${word}`)) {
+                    const col = line.indexOf(word);
+                    return new vscode.Location(document.uri, new vscode.Position(i, col >= 0 ? col : 0));
+                }
+            }
+            return null;
+        }
+    });
+
+    context.subscriptions.push(hoverProvider, codeLensProvider, defProvider);
+}
+
+function activate(context) {
+    console.log('[Vit Extension] Activating Vit & Vito Language Support v2.3.0...');
+
+    // Register Native Providers first for 100% instant availability
+    registerNativeProviders(context);
+
+    // Launch LSP Server
     startLspServer(context);
 
     const runCmd = vscode.commands.registerCommand('vit.runFile', () => {

@@ -1,12 +1,12 @@
 {
   "name": "vscode-vit",
   "displayName": "Vit & Vito Language Support",
-  "description": "Next-Gen IDE experience: Intellisense, CodeLens 1-Click Run, Signature Help, Inlay Hints, Rename Symbol, Formatting & LSP",
-  "version": "2.2.0",
+  "description": "Next-Gen IDE experience: Intellisense, CodeLens 1-Click Run, Doc Comments Hover, Signature Help, Inlay Hints, Rename Symbol, Formatting & LSP",
+  "version": "2.3.0",
   "publisher": "HongLong",
   "icon": "icon.png",
   "engines": {
-    "vscode": "^1.75.0"
+    "vscode": "^1.82.0"
   },
   "categories": [
     "Programming Languages",
@@ -15,8 +15,11 @@
   ],
   "main": "./extension.js",
   "activationEvents": [
-    "onLanguage:vit"
+    "*"
   ],
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  },
   "contributes": {
     "languages": [
       {
