@@ -39,7 +39,14 @@ vit_connection_slab_t* vit_slab_alloc(vit_slab_pool_t* pool);
 void vit_slab_free(vit_slab_pool_t* pool, vit_connection_slab_t* slab);
 void vit_slab_pool_destroy(vit_slab_pool_t* pool);
 
-size_t vit_slab_pool_memory_usage(const vit_slab_pool_t* pool);
+typedef struct VIT_CACHE_ALIGN {
+    char arena_buf[64 * 1024]; // 64KB per-thread lock-free arena
+    size_t offset;
+} vit_thread_arena_t;
+
+vit_thread_arena_t* vit_thread_arena_get(void);
+void* vit_thread_arena_alloc(size_t size);
+void vit_thread_arena_reset(void);
 
 #ifdef __cplusplus
 }

@@ -82,3 +82,37 @@ void vit_slab_pool_destroy(vit_slab_pool_t* pool) {
     if (pool->free_indices) free(pool->free_indices);
     free(pool);
 }
+
+#if defined(_MSC_VER)
+static __declspec(thread) vit_thread_arena_t tls_arena;
+static __declspec(thread) bool tls_arena_inited = false;
+#else
+static __thread vit_thread_arena_t tls_arena;
+static __thread bool tls_arena_inited = false;
+#endif
+
+vit_thread_arena_t* vit_thread_arena_get(void) {
+    if (!tls_arena_inited) {
+        tls_arena.offset = 0;
+        tls_arena_inited = true;
+    }
+    return &tls_arena;
+}
+
+void* vit_thread_arena_alloc(size_t size) {
+    vit_thread_arena_t* arena = vit_thread_arena_get();
+    // Align size to 8 bytes
+    size_t aligned_size = (size + 7) & ~((size_t)7);
+    if (arena->offset + aligned_size > sizeof(arena->arena_buf)) {
+        // Fallback to malloc for large allocations exceeding 64KB arena
+        return malloc(aligned_size);
+    }
+    void* ptr = &arena->arena_buf[arena->offset];
+    arena->offset += aligned_size;
+    return ptr;
+}
+
+void vit_thread_arena_reset(void) {
+    vit_thread_arena_t* arena = vit_thread_arena_get();
+    arena->offset = 0;
+}

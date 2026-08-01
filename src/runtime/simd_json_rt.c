@@ -120,3 +120,30 @@ size_t vit_simd_json_stringify_fast(const vit_simd_json_doc_t* doc, char* out_bu
     if (doc->json_len < out_cap) out_buf[doc->json_len] = '\0';
     return doc->json_len;
 }
+
+const char* vit_simd_json_get_field(const vit_simd_json_doc_t* doc, const char* key, size_t* val_len_out) {
+    if (!doc || !key || !doc->tokens) return NULL;
+    size_t key_len = strlen(key);
+
+    for (size_t i = 0; i + 2 < doc->token_count; i++) {
+        if (doc->tokens[i].type == VIT_JSON_TOK_STRING) {
+            uint32_t str_offset = doc->tokens[i].offset + 1; // skip leading "
+            if (str_offset + key_len <= doc->json_len &&
+                strncmp(doc->json_src + str_offset, key, key_len) == 0 &&
+                doc->json_src[str_offset + key_len] == '"') {
+                
+                // Found matching key token, look for subsequent COLON and value
+                if (doc->tokens[i + 1].type == VIT_JSON_TOK_COLON) {
+                    uint32_t val_start = doc->tokens[i + 2].offset;
+                    uint32_t val_end = doc->json_len;
+                    if (i + 3 < doc->token_count) {
+                        val_end = doc->tokens[i + 3].offset;
+                    }
+                    if (val_len_out) *val_len_out = (size_t)(val_end - val_start);
+                    return doc->json_src + val_start;
+                }
+            }
+        }
+    }
+    return NULL;
+}

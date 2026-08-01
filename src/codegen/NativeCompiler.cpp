@@ -169,6 +169,9 @@ bool NativeCompiler::compileIRWithOptions(const std::string& irFilePath, const s
     addRtCandidate(rtPath, exeDir, "memory_rt.c");
     addRtCandidate(rtPath, exeDir, "async_iouring_rt.c");
     addRtCandidate(rtPath, exeDir, "http_parser_simd.c");
+    addRtCandidate(rtPath, exeDir, "simd_json_rt.c");
+    addRtCandidate(rtPath, exeDir, "slab_allocator_rt.c");
+    addRtCandidate(rtPath, exeDir, "kernel_bypass_rt.c");
 
     std::string gccPath = detectGCC();
     std::string linkerBinary = gccPath.empty() ? clangExecutablePath : gccPath;
@@ -180,6 +183,10 @@ bool NativeCompiler::compileIRWithOptions(const std::string& irFilePath, const s
 
     // LTO, PGO & CPU Native flags
     std::string extraOptFlags = "";
+    if (options.optLevel == "-O3" || options.optLevel == "-O2") {
+        extraOptFlags += "-funroll-loops -fvectorize ";
+    }
+
     if (options.ltoMode == "thin" || options.ltoMode == "full") {
         extraOptFlags += isGCCLinker ? "-flto " : "-flto=thin -fuse-ld=lld ";
     }

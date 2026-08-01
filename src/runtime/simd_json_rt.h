@@ -48,6 +48,9 @@ size_t vit_simd_json_find_structural_indexes(const char* buf, size_t len, uint32
 // High Performance Zero-Allocation Stringifier
 size_t vit_simd_json_stringify_fast(const vit_simd_json_doc_t* doc, char* out_buf, size_t out_cap);
 
+// Zero-Allocation Direct Field Lookup
+const char* vit_simd_json_get_field(const vit_simd_json_doc_t* doc, const char* key, size_t* val_len_out);
+
 #ifdef __cplusplus
 }
 #endif

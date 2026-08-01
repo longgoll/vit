@@ -186,6 +186,10 @@ static void* worker_thread_loop(void* arg_ptr)
 
 #endif
 
+#ifndef IORING_SETUP_SQPOLL
+#define IORING_SETUP_SQPOLL (1U << 1)
+#endif
+
 int vit_iouring_init(vit_iouring_t* ring, uint32_t depth) {
     if (!ring) return -1;
     memset(ring, 0, sizeof(vit_iouring_t));
@@ -206,7 +210,17 @@ int vit_iouring_init(vit_iouring_t* ring, uint32_t depth) {
     } p;
     memset(&p, 0, sizeof(p));
 
+    // Attempt SQPOLL zero-syscall kernel polling thread
+    p.flags = IORING_SETUP_SQPOLL;
+    p.sq_thread_idle = 2000;
     int res = sys_io_uring_setup(depth, &p);
+
+    if (res < 0) {
+        // Fallback to standard io_uring if SQPOLL permission is ungranted
+        memset(&p, 0, sizeof(p));
+        res = sys_io_uring_setup(depth, &p);
+    }
+
     if (res >= 0) {
         ring->ring_fd = res;
         ring->sq_entries = p.sq_entries;
