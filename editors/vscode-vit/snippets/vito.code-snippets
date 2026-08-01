@@ -1,0 +1,50 @@
+{
+  "Vito Web Server Quickstart": {
+    "prefix": "vito-server",
+    "body": [
+      "import { Vito } from \"vito\";",
+      "",
+      "const app = Vito.new();",
+      "",
+      "app.get(\"/\", (req, res) => {",
+      "  return res.json({ message: \"Hello from Vito Framework!\" });",
+      "});",
+      "",
+      "app.get(\"/api/health\", (req, res) => {",
+      "  return res.json({ status: \"ok\", timestamp: Date.now() });",
+      "});",
+      "",
+      "app.listen(3000);",
+      "print(\"⚡ Server running on http://localhost:3000\");"
+    ],
+    "description": "Boilerplate Vito web server"
+  },
+  "Vito GET Route": {
+    "prefix": "vito-get",
+    "body": [
+      "app.get(\"${1:/path}\", (req, res) => {",
+      "  return res.json({ ${2:message}: \"${3:success}\" });",
+      "});"
+    ],
+    "description": "Add Vito GET endpoint"
+  },
+  "Vito POST Route": {
+    "prefix": "vito-post",
+    "body": [
+      "app.post(\"${1:/path}\", (req, res) => {",
+      "  const body = req.body();",
+      "  return res.json({ success: true, data: body });",
+      "});"
+    ],
+    "description": "Add Vito POST endpoint"
+  },
+  "Vit Function Declaration": {
+    "prefix": "fn",
+    "body": [
+      "function ${1:name}(${2:params}): ${3:void} {",
+      "  ${4:// body}",
+      "}"
+    ],
+    "description": "Vit Function template"
+  }
+}

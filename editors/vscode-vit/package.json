@@ -1,0 +1,43 @@
+{
+  "name": "vscode-vit",
+  "displayName": "Vit & Vito Language Support",
+  "description": "Rich IDE experience, Intellisense, Syntax Highlighting, Snippets & LSP for Vit Language & Vito Framework",
+  "version": "2.0.0",
+  "publisher": "vit-lang",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "vit",
+        "aliases": [
+          "Vit",
+          "vit"
+        ],
+        "extensions": [
+          ".vit"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "vit",
+        "scopeName": "source.vit",
+        "path": "./syntaxes/vit.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "vit",
+        "path": "./snippets/vito.code-snippets"
+      }
+    ]
+  }
+}

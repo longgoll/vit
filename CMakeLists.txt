@@ -21,6 +21,7 @@ set(COMMON_SOURCES
     src/tools/REPL.cpp
     src/tools/Formatter.cpp
     src/tools/Linter.cpp
+    src/tools/DevServer.cpp
 )
 
 add_executable(vit ${COMMON_SOURCES} src/main.cpp)

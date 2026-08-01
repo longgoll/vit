@@ -12,6 +12,7 @@
 #include "tools/REPL.h"
 #include "tools/Formatter.h"
 #include "tools/Linter.h"
+#include "tools/DevServer.h"
 
 #include <algorithm>
 #include <fstream>
@@ -35,6 +36,7 @@ void printUsage(const char* progName) {
     std::cout << "  vit <file> [options]         (Shortcut for 'vit run <file>')\n\n";
     std::cout << "Commands:\n";
     std::cout << "  run <file>      Compile and execute a VIT source file immediately\n";
+    std::cout << "  dev [file]      Start dev server with live-reload watching source changes\n";
     std::cout << "  build <file>    Compile a VIT source file into a native executable (.exe)\n";
     std::cout << "  init [name]     Initialize a new Vit project directory\n";
     std::cout << "  add <package>   Add a package dependency to vit.json\n";
@@ -260,6 +262,9 @@ int main(int argc, char* argv[]) {
         LSPServer lsp;
         lsp.run();
         return 0;
+    } else if (firstArg == "dev") {
+        std::string target = (argc >= 3) ? argv[2] : "";
+        return DevServer::run(target, argc, argv);
     }
 
     int startIndex = 1;
