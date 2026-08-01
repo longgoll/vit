@@ -11,8 +11,10 @@ extern "C" {
 void vit_net_init(void);
 void vit_net_cleanup(void);
 
-// Socket Primitives
+// Non-blocking Socket Primitives
 double vit_net_socket_create(void);
+double vit_net_socket_set_nonblocking(double fd, double enable);
+double vit_net_socket_set_reuseport(double fd, double enable);
 double vit_net_socket_bind(double fd, const char* host, double port);
 double vit_net_socket_listen(double fd, double backlog);
 double vit_net_socket_accept(double fd);
@@ -21,8 +23,9 @@ double vit_net_socket_send(double fd, const char* data, double len);
 double vit_net_socket_recv(double fd, char* buf, double max_len);
 void vit_net_socket_close(double fd);
 
-// Helper Utilities
+// High-Performance Fast Buffer Recv & Static Fast Response
 char* vit_net_recv_string(double fd, double max_len);
+double vit_net_send_raw(double fd, const char* data, double len);
 
 #ifdef __cplusplus
 }

@@ -1,11 +1,7 @@
 #include "net_rt.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-
-void* malloc(size_t size);
-void free(void* ptr);
-void exit(int status);
-int atoi(const char* str);
 
 #ifdef _WIN32
     #ifndef __X86INTRIN_H
@@ -30,6 +26,8 @@ int atoi(const char* str);
 #else
     #include <sys/socket.h>
     #include <netinet/in.h>
+    #include <netinet/tcp.h>
+    #include <fcntl.h>
     #include <arpa/inet.h>
     #include <unistd.h>
     #define SOCKET int
@@ -39,6 +37,10 @@ int atoi(const char* str);
 #endif
 
 static int g_net_initialized = 0;
+
+// Thread-local static buffer pool to eliminate dynamic malloc/free overhead per request
+#define FAST_BUFFER_SIZE 8192
+static _Thread_local char g_fast_recv_buf[FAST_BUFFER_SIZE + 1];
 
 void vit_net_init(void) {
     if (g_net_initialized) return;
@@ -64,15 +66,50 @@ double vit_net_socket_create(void) {
     vit_net_init();
     SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (s == INVALID_SOCKET) {
-#ifdef _WIN32
-        fprintf(stderr, "[VIT Net Error] socket create failed: %d\n", WSAGetLastError());
-#endif
         return -1.0;
     }
-    // Allow address reuse
+    
+    // Performance Optimizations: TCP_NODELAY & SO_REUSEADDR & SO_REUSEPORT (Linux)
     int opt = 1;
     setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
+#ifdef SO_REUSEPORT
+    setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (const char*)&opt, sizeof(opt));
+#endif
+    setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char*)&opt, sizeof(opt));
+    
+    // Maximize Socket Send/Receive Buffers (64KB)
+    int buf_size = 65536;
+    setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char*)&buf_size, sizeof(buf_size));
+    setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char*)&buf_size, sizeof(buf_size));
+
     return (double)s;
+}
+
+double vit_net_socket_set_reuseport(double fd_dbl, double enable_dbl) {
+    int fd = (int)fd_dbl;
+    int opt = ((int)enable_dbl) ? 1 : 0;
+#ifdef SO_REUSEPORT
+    int res = setsockopt((SOCKET)fd, SOL_SOCKET, SO_REUSEPORT, (const char*)&opt, sizeof(opt));
+    return (res == 0) ? 0.0 : -1.0;
+#else
+    return 0.0; // Graceful fallback on OS without SO_REUSEPORT (Windows)
+#endif
+}
+
+double vit_net_socket_set_nonblocking(double fd_dbl, double enable_dbl) {
+    int fd = (int)fd_dbl;
+    int enable = (int)enable_dbl;
+#ifdef _WIN32
+    u_long mode = enable ? 1 : 0;
+    int res = ioctlsocket((SOCKET)fd, FIONBIO, &mode);
+    return (res == 0) ? 0.0 : -1.0;
+#else
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags == -1) return -1.0;
+    flags = enable ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK);
+    int res = fcntl(fd, F_SETFL, flags);
+    return (res == 0) ? 0.0 : -1.0;
+#endif
 }
 
 double vit_net_socket_bind(double fd_dbl, const char* host, double port_dbl) {
@@ -92,19 +129,13 @@ double vit_net_socket_bind(double fd_dbl, const char* host, double port_dbl) {
     }
 
     int res = bind((SOCKET)fd, (struct sockaddr*)&addr, sizeof(addr));
-    if (res == SOCKET_ERROR) {
-#ifdef _WIN32
-        fprintf(stderr, "[VIT Net Error] bind to %s:%d failed: %d\n", host ? host : "0.0.0.0", port, WSAGetLastError());
-#endif
-        return -1.0;
-    }
-    return 0.0;
+    return (res == SOCKET_ERROR) ? -1.0 : 0.0;
 }
 
 double vit_net_socket_listen(double fd_dbl, double backlog_dbl) {
     int fd = (int)fd_dbl;
     int backlog = (int)backlog_dbl;
-    if (backlog <= 0) backlog = 128;
+    if (backlog <= 0) backlog = 4096;
     int res = listen((SOCKET)fd, backlog);
     return (res == SOCKET_ERROR) ? -1.0 : 0.0;
 }
@@ -117,6 +148,11 @@ double vit_net_socket_accept(double fd_dbl) {
     if (client_fd == INVALID_SOCKET) {
         return -1.0;
     }
+
+    // Set TCP_NODELAY on accepted client socket
+    int opt = 1;
+    setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, (const char*)&opt, sizeof(opt));
+
     return (double)client_fd;
 }
 
@@ -143,6 +179,10 @@ double vit_net_socket_send(double fd_dbl, const char* data, double len_dbl) {
     return (bytes_sent == SOCKET_ERROR) ? -1.0 : (double)bytes_sent;
 }
 
+double vit_net_send_raw(double fd_dbl, const char* data, double len_dbl) {
+    return vit_net_socket_send(fd_dbl, data, len_dbl);
+}
+
 double vit_net_socket_recv(double fd_dbl, char* buf, double max_len_dbl) {
     int fd = (int)fd_dbl;
     int max_len = (int)max_len_dbl;
@@ -158,17 +198,17 @@ void vit_net_socket_close(double fd_dbl) {
     }
 }
 
+// Optimized recv_string using thread-local static buffer pool (Zero Malloc)
 char* vit_net_recv_string(double fd_dbl, double max_len_dbl) {
     int fd = (int)fd_dbl;
     int max_len = (int)max_len_dbl;
-    if (max_len <= 0) max_len = 4096;
-    char* buf = (char*)malloc(max_len + 1);
-    if (!buf) return NULL;
-    int bytes_read = recv((SOCKET)fd, buf, max_len, 0);
+    if (max_len <= 0 || max_len > FAST_BUFFER_SIZE) max_len = FAST_BUFFER_SIZE;
+    
+    int bytes_read = recv((SOCKET)fd, g_fast_recv_buf, max_len, 0);
     if (bytes_read <= 0) {
-        buf[0] = '\0';
+        g_fast_recv_buf[0] = '\0';
     } else {
-        buf[bytes_read] = '\0';
+        g_fast_recv_buf[bytes_read] = '\0';
     }
-    return buf;
+    return g_fast_recv_buf;
 }
