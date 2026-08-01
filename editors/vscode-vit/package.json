@@ -1,17 +1,22 @@
 {
   "name": "vscode-vit",
   "displayName": "Vit & Vito Language Support",
-  "description": "Rich IDE experience, Intellisense, Syntax Highlighting, Snippets & LSP for Vit Language & Vito Framework",
-  "version": "2.0.0",
-  "publisher": "vit-lang",
+  "description": "Next-Gen IDE experience: Intellisense, CodeLens 1-Click Run, Signature Help, Inlay Hints, Rename Symbol, Formatting & LSP",
+  "version": "2.2.0",
+  "publisher": "HongLong",
+  "icon": "icon.png",
   "engines": {
     "vscode": "^1.75.0"
   },
   "categories": [
     "Programming Languages",
-    "Snippets"
+    "Snippets",
+    "Formatters"
   ],
   "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:vit"
+  ],
   "contributes": {
     "languages": [
       {
@@ -23,6 +28,10 @@
         "extensions": [
           ".vit"
         ],
+        "icon": {
+          "light": "./icon.svg",
+          "dark": "./icon.svg"
+        },
         "configuration": "./language-configuration.json"
       }
     ],
@@ -38,6 +47,42 @@
         "language": "vit",
         "path": "./snippets/vito.code-snippets"
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "vit.runFile",
+        "title": "Vit: Run Active Vit File"
+      },
+      {
+        "command": "vit.restartLsp",
+        "title": "Vit: Restart Language Server (LSP)"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Vit & Vito Configuration",
+      "properties": {
+        "vit.lsp.path": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to vit-lsp.exe executable."
+        },
+        "vit.format.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic document formatting for .vit files."
+        },
+        "vit.inlayHints.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable inlay hints for variable types and parameters."
+        },
+        "vit.codeLens.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable 1-Click Run CodeLens above function main()."
+        }
+      }
+    }
   }
 }

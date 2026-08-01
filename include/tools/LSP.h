@@ -32,6 +32,12 @@ private:
     void handleHover(const std::string& id, const std::string& uri, int line, int character);
     void handleCompletion(const std::string& id, const std::string& uri, int line, int character);
     void handleDefinition(const std::string& id, const std::string& uri, int line, int character);
+    void handleFormatting(const std::string& id, const std::string& uri);
+    void handleSignatureHelp(const std::string& id, const std::string& uri, int line, int character);
+    void handleInlayHint(const std::string& id, const std::string& uri);
+    void handleRename(const std::string& id, const std::string& uri, int line, int character, const std::string& newName);
+    void handleCodeAction(const std::string& id, const std::string& uri);
+    void handleCodeLens(const std::string& id, const std::string& uri);
     void publishDiagnostics(const std::string& uri, const std::string& content);
 
     std::string extractJsonField(const std::string& json, const std::string& fieldName);

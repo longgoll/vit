@@ -2,6 +2,9 @@
 build/
 bin/
 out/
+dist/
+*.zip
+*.vsix
 .vs/
 .vscode/
 .idea/

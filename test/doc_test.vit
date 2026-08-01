@@ -1,0 +1,21 @@
+// Calculates the square of a number
+// @param n The input number
+fn square(n: number): number {
+    return n * n;
+}
+
+// User account structure for Vito Framework
+struct User {
+    name: string,
+    age: number
+}
+
+function main(): void {
+    // Hover over 'square' below to see the Doc Comments tooltip!
+    let total: number = square(5);
+
+    // Hover over 'User' below to see struct details!
+    let u: User;
+
+    print("Square result: " + total);
+}

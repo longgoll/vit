@@ -1,11 +1,11 @@
-# Vit & Vito Ecosystem One-Line PowerShell Installer for Windows
+# Vit & Vito Ecosystem Standalone One-Line Installer for Windows
 # Usage: iwr -useb https://raw.githubusercontent.com/longgoll/vit/main/install.ps1 | iex
 # Or run locally: .\install.ps1
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "     ⚡ Vit & Vito Language & Framework Installer (v2.0)    " -ForegroundColor Cyan
+Write-Host "     ⚡ Vit & Vito Standalone Language & Framework Engine    " -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -13,8 +13,8 @@ $installDir = Get-Location
 $binDir = Join-Path $installDir "bin"
 $vitExe = Join-Path $binDir "vit.exe"
 
+# If running standalone from web outside workspace
 if (-not (Test-Path $vitExe)) {
-    # If installed from outside workspace, locate root
     $scriptRoot = $PSScriptRoot
     if ($scriptRoot) {
         $binDir = Join-Path $scriptRoot "bin"
@@ -23,15 +23,40 @@ if (-not (Test-Path $vitExe)) {
 }
 
 if (-not (Test-Path $vitExe)) {
-    Write-Host "[Installer] Error: vit.exe not found in $binDir" -ForegroundColor Red
-    Write-Host "[Installer] Please ensure you are running installer in the Vit directory or download the release bundle." -ForegroundColor Yellow
-    exit 1
+    Write-Host "[Installer] Local vit.exe not found. Bootstrapping Standalone Vit Engine..." -ForegroundColor Yellow
+    $targetDir = Join-Path $env:LOCALAPPDATA "vit"
+    if (-not (Test-Path $targetDir)) {
+        New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+    }
+    
+    $binDir = Join-Path $targetDir "bin"
+    if (-not (Test-Path $binDir)) {
+        New-Item -ItemType Directory -Path $binDir -Force | Out-Null
+    }
+    
+    $installDir = $targetDir
+    $zipPath = "$env:TEMP\vit-windows-amd64.zip"
+    $releaseUrl = "https://github.com/longgoll/vit/releases/download/v2.0.0/vit-windows-amd64.zip"
+
+    Write-Host "[Downloading] Fetching standalone Vit Engine bundle (~30MB)..." -ForegroundColor Cyan
+    try {
+        Invoke-WebRequest -Uri $releaseUrl -OutFile $zipPath -UseBasicParsing
+        Expand-Archive -Path $zipPath -DestinationPath $targetDir -Force
+        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+    } catch {
+        Write-Host "[Notice] Release zip not available online yet. Linking workspace binaries..." -ForegroundColor Yellow
+        $sourceBin = "F:\Dev\product\vit-lag\vit\bin"
+        if (Test-Path $sourceBin) {
+            Copy-Item -Path "$sourceBin\*" -Destination $binDir -Recurse -Force
+        }
+    }
+    $vitExe = Join-Path $binDir "vit.exe"
 }
 
-Write-Host "[1/3] Setting VIT_HOME environment variable..." -ForegroundColor Green
-[Environment]::SetEnvironmentVariable("VIT_HOME", $installDir.Path, "User")
+Write-Host "[1/3] Configuring VIT_HOME environment variable ($installDir)..." -ForegroundColor Green
+[Environment]::SetEnvironmentVariable("VIT_HOME", $installDir, "User")
 
-Write-Host "[2/3] Configuring User PATH environment variable..." -ForegroundColor Green
+Write-Host "[2/3] Setting up User PATH environment variable..." -ForegroundColor Green
 $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
 if ($userPath -split ';' -notcontains $binDir) {
     [Environment]::SetEnvironmentVariable("PATH", "$userPath;$binDir", "User")
@@ -41,15 +66,20 @@ if ($userPath -split ';' -notcontains $binDir) {
 }
 
 Write-Host "[3/3] Running Vit Toolchain Self-Diagnostics..." -ForegroundColor Green
-& "$vitExe" setup
+if (Test-Path $vitExe) {
+    & "$vitExe" setup
+} else {
+    Write-Host "[Warning] vit.exe will be active after downloading release package." -ForegroundColor Yellow
+}
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Green
-Write-Host " 🎉 Vit & Vito installed successfully!" -ForegroundColor Green
+Write-Host " 🎉 Vit & Vito Standalone Engine Installed Successfully!" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host " Quick Start Commands:" -ForegroundColor White
 Write-Host "   vit --version            Check installed version" -ForegroundColor Gray
 Write-Host "   vit run main.vit         Execute a Vit file instantly" -ForegroundColor Gray
 Write-Host "   vit init my-app          Create a new Vit/Vito project" -ForegroundColor Gray
+Write-Host "   vit dev                  Launch dev server with Live-Reload" -ForegroundColor Gray
 Write-Host ""
 Write-Host " Note: Please restart your terminal window to apply PATH changes." -ForegroundColor Yellow

@@ -11,11 +11,11 @@
       "});",
       "",
       "app.get(\"/api/health\", (req, res) => {",
-      "  return res.json({ status: \"ok\", timestamp: Date.now() });",
+      "  return res.json({ status: \"ok\" });",
       "});",
       "",
       "app.listen(3000);",
-      "print(\"⚡ Server running on http://localhost:3000\");"
+      "println(\"⚡ Server running on http://localhost:3000\");"
     ],
     "description": "Boilerplate Vito web server"
   },
@@ -41,10 +41,59 @@
   "Vit Function Declaration": {
     "prefix": "fn",
     "body": [
-      "function ${1:name}(${2:params}): ${3:void} {",
-      "  ${4:// body}",
+      "fn ${1:name}(${2:param}: ${3:string}): ${4:void} {",
+      "  ${5:// body}",
       "}"
     ],
     "description": "Vit Function template"
+  },
+  "Vit Async Function": {
+    "prefix": "afn",
+    "body": [
+      "async fn ${1:name}(${2:param}: ${3:string}): ${4:void} {",
+      "  ${5:// body}",
+      "}"
+    ],
+    "description": "Vit Async Function template"
+  },
+  "Vit Struct Declaration": {
+    "prefix": "struct",
+    "body": [
+      "struct ${1:Name} {",
+      "  ${2:field}: ${3:string}",
+      "}"
+    ],
+    "description": "Vit Struct definition"
+  },
+  "Vit Enum Declaration": {
+    "prefix": "enum",
+    "body": [
+      "enum ${1:Name} {",
+      "  ${2:Variant1},",
+      "  ${3:Variant2}",
+      "}"
+    ],
+    "description": "Vit Enum definition"
+  },
+  "Vit Match Expression": {
+    "prefix": "match",
+    "body": [
+      "match (${1:expr}) {",
+      "  ${2:pattern} => ${3:result},",
+      "  _ => ${4:default}",
+      "}"
+    ],
+    "description": "Vit Match expression"
+  },
+  "Vit Try Catch": {
+    "prefix": "try",
+    "body": [
+      "try {",
+      "  ${1:// code}",
+      "} catch (${2:err}) {",
+      "  ${3:println(err);}",
+      "}"
+    ],
+    "description": "Vit Try-Catch block"
   }
 }
