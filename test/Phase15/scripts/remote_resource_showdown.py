@@ -5,10 +5,10 @@ import paramiko
 import time
 import re
 
-HOST = "192.168.1.150"
-PORT = 22
-USER = "hoanglong"
-PASS = "258456"
+HOST = os.getenv("BENCHMARK_SSH_HOST", "192.168.1.150")
+PORT = int(os.getenv("BENCHMARK_SSH_PORT", "22"))
+USER = os.getenv("BENCHMARK_SSH_USER", "hoanglong")
+PASS = os.getenv("BENCHMARK_SSH_PASS", "")
 
 LOCAL_DIR = r"f:\Dev\product\vit-lag\vit"
 TAR_PATH = r"f:\Dev\product\vit-lag\res_showdown.tar.gz"
@@ -48,9 +48,18 @@ sftp.close()
 
 print("[4/5] Extracting & Compiling Vito, Go, and Rust servers...", flush=True)
 exec_cmd(f"mkdir -p {REMOTE_DIR} && cd {REMOTE_DIR} && tar -xzf res_showdown.tar.gz")
-exec_cmd(f"cd {REMOTE_DIR} && gcc -O3 -march=native -flto -Iinclude -Isrc test/Phase15/benchmark_server.c src/runtime/memory_rt.c src/runtime/async_iouring_rt.c src/runtime/http_parser_simd.c src/runtime/net_rt.c -pthread -o vito_server")
-exec_cmd(f"cd {REMOTE_DIR} && go build -ldflags=\"-s -w\" -o go_server test/Phase15/go_server.go")
-exec_cmd(f"cd {REMOTE_DIR} && rustc -O -C opt-level=3 -C target-cpu=native test/Phase15/rust_server.rs -o rust_server")
+
+# 1. Compile Vito Engine Server
+print("--> Building Vito Framework Server...", flush=True)
+exec_cmd(f"cd {REMOTE_DIR} && gcc -O3 -march=native -flto -Iinclude -Isrc test/Phase15/servers/benchmark_server.c src/runtime/memory_rt.c src/runtime/async_iouring_rt.c src/runtime/http_parser_simd.c src/runtime/net_rt.c -pthread -o vito_server")
+
+# 2. Compile Go Server
+print("--> Building Go Server...", flush=True)
+exec_cmd(f"cd {REMOTE_DIR} && go build -ldflags=\"-s -w\" -o go_server test/Phase15/servers/go_server.go")
+
+# 3. Compile Rust Server
+print("--> Building Rust Server...", flush=True)
+exec_cmd(f"cd {REMOTE_DIR} && rustc -O -C opt-level=3 -C target-cpu=native test/Phase15/servers/rust_server.rs -o rust_server")
 
 print("\n[5/5] === EXECUTING RESOURCE & PERFORMANCE BENCHMARK SHOWDOWN ===", flush=True)
 

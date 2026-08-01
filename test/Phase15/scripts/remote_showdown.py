@@ -5,10 +5,10 @@ import paramiko
 import time
 import re
 
-HOST = "192.168.1.150"
-PORT = 22
-USER = "hoanglong"
-PASS = "258456"
+HOST = os.getenv("BENCHMARK_SSH_HOST", "192.168.1.150")
+PORT = int(os.getenv("BENCHMARK_SSH_PORT", "22"))
+USER = os.getenv("BENCHMARK_SSH_USER", "hoanglong")
+PASS = os.getenv("BENCHMARK_SSH_PASS", "")
 
 LOCAL_DIR = r"f:\Dev\product\vit-lag\vit"
 TAR_PATH = r"f:\Dev\product\vit-lag\vit_showdown.tar.gz"
@@ -65,15 +65,15 @@ print("[5/6] Compiling Vito, Go, and Rust Native Servers...", flush=True)
 
 # 1. Compile Vito Engine Server
 print("--> Building Vito Framework Server...", flush=True)
-exec_cmd(f"cd {REMOTE_DIR} && gcc -O3 -march=native -flto -Iinclude -Isrc test/Phase15/benchmark_server.c src/runtime/memory_rt.c src/runtime/async_iouring_rt.c src/runtime/http_parser_simd.c src/runtime/net_rt.c -pthread -o vito_server")
+exec_cmd(f"cd {REMOTE_DIR} && gcc -O3 -march=native -flto -Iinclude -Isrc test/Phase15/servers/benchmark_server.c src/runtime/memory_rt.c src/runtime/async_iouring_rt.c src/runtime/http_parser_simd.c src/runtime/net_rt.c -pthread -o vito_server")
 
 # 2. Compile Go Server
 print("--> Building Go Server...", flush=True)
-exec_cmd(f"cd {REMOTE_DIR} && go build -ldflags=\"-s -w\" -o go_server test/Phase15/go_server.go")
+exec_cmd(f"cd {REMOTE_DIR} && go build -ldflags=\"-s -w\" -o go_server test/Phase15/servers/go_server.go")
 
 # 3. Compile Rust Server
 print("--> Building Rust Server...", flush=True)
-exec_cmd(f"cd {REMOTE_DIR} && rustc -O -C opt-level=3 -C target-cpu=native test/Phase15/rust_server.rs -o rust_server")
+exec_cmd(f"cd {REMOTE_DIR} && rustc -O -C opt-level=3 -C target-cpu=native test/Phase15/servers/rust_server.rs -o rust_server")
 
 print("\n[6/6] === EXECUTING HEAD-TO-HEAD BENCHMARK SHOWDOWN ===", flush=True)
 
@@ -126,7 +126,7 @@ exec_cmd("pkill -f rust_server || true")
 results["Rust (Native)"] = parse_wrk(out_rust)
 
 print("\n" + "="*65, flush=True)
-print("🏆 SHOWDOWN RESULTS: VITO FRAMEWORK vs GOLANG vs RUST", flush=True)
+print("SHOWDOWN RESULTS: VITO FRAMEWORK vs GOLANG vs RUST", flush=True)
 print("="*65, flush=True)
 print(f"{'Framework / Language':<22} | {'Throughput (req/s)':<18} | {'Avg Latency':<12} | {'P99 Latency':<12}")
 print("-" * 72)

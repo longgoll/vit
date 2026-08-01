@@ -4,10 +4,10 @@ import tarfile
 import paramiko
 import time
 
-HOST = "192.168.1.150"
-PORT = 22
-USER = "hoanglong"
-PASS = "258456"
+HOST = os.getenv("BENCHMARK_SSH_HOST", "192.168.1.150")
+PORT = int(os.getenv("BENCHMARK_SSH_PORT", "22"))
+USER = os.getenv("BENCHMARK_SSH_USER", "hoanglong")
+PASS = os.getenv("BENCHMARK_SSH_PASS", "")
 
 LOCAL_DIR = r"f:\Dev\product\vit-lag\vit"
 TAR_PATH = r"f:\Dev\product\vit-lag\vit_code.tar.gz"
@@ -65,7 +65,7 @@ exec_sudo("apt-get update -y")
 exec_sudo("apt-get install -y build-essential gcc wrk liburing-dev")
 
 print("[4c] Compiling Native Benchmark Server...", flush=True)
-exec_cmd(f"cd {REMOTE_DIR} && gcc -O3 -march=native -flto -Iinclude -Isrc test/Phase15/benchmark_server.c src/runtime/memory_rt.c src/runtime/async_iouring_rt.c src/runtime/http_parser_simd.c src/runtime/net_rt.c -pthread -o linux_benchmark_server")
+exec_cmd(f"cd {REMOTE_DIR} && gcc -O3 -march=native -flto -Iinclude -Isrc test/Phase15/servers/benchmark_server.c src/runtime/memory_rt.c src/runtime/async_iouring_rt.c src/runtime/http_parser_simd.c src/runtime/net_rt.c -pthread -o linux_benchmark_server")
 
 print("[5/5] Running High-Throughput Bare-Metal Linux Benchmark (wrk)...", flush=True)
 exec_cmd(f"pkill -f linux_benchmark_server || true")

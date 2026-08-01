@@ -5,10 +5,10 @@ import paramiko
 import time
 import re
 
-HOST = "192.168.1.150"
-PORT = 22
-USER = "hoanglong"
-PASS = "258456"
+HOST = os.getenv("BENCHMARK_SSH_HOST", "192.168.1.150")
+PORT = int(os.getenv("BENCHMARK_SSH_PORT", "22"))
+USER = os.getenv("BENCHMARK_SSH_USER", "hoanglong")
+PASS = os.getenv("BENCHMARK_SSH_PASS", "")
 
 LOCAL_DIR = r"f:\Dev\product\vit-lag\vit"
 TAR_PATH = r"f:\Dev\product\vit-lag\pure_showdown.tar.gz"
@@ -48,14 +48,24 @@ except Exception:
 sftp.put(TAR_PATH, f"{REMOTE_DIR}/pure_showdown.tar.gz")
 sftp.close()
 
-print("[4/5] Extracting & Compiling pure CPU benchmarks...", flush=True)
+print("[4/5] Extracting & Compiling Network Benchmarks...", flush=True)
 exec_cmd(f"mkdir -p {REMOTE_DIR} && cd {REMOTE_DIR} && tar -xzf pure_showdown.tar.gz")
 
-# Compile all 4 pure benchmarks
-exec_cmd(f"cd {REMOTE_DIR} && gcc -O3 -march=native -flto test/Phase15/bench_vit.c -o bench_vit")
-exec_cmd(f"cd {REMOTE_DIR} && g++ -O3 -march=native -flto test/Phase15/bench_cpp.cpp -o bench_cpp")
-exec_cmd(f"cd {REMOTE_DIR} && rustc -O -C opt-level=3 -C target-cpu=native test/Phase15/bench_rust.rs -o bench_rust")
-exec_cmd(f"cd {REMOTE_DIR} && go build -ldflags=\"-s -w\" -o bench_go test/Phase15/bench_go.go")
+# 1. Compile Vito Engine Server
+print("--> Building Vito Framework Server...", flush=True)
+exec_cmd(f"cd {REMOTE_DIR} && gcc -O3 -march=native -flto -Iinclude -Isrc test/Phase15/servers/benchmark_server.c src/runtime/memory_rt.c src/runtime/async_iouring_rt.c src/runtime/http_parser_simd.c src/runtime/net_rt.c -pthread -o vito_server")
+
+# 2. Compile C++ Server
+print("--> Building C++ uWebSockets-style Server...", flush=True)
+exec_cmd(f"cd {REMOTE_DIR} && g++ -O3 -march=native -flto test/Phase15/servers/bench_cpp.cpp -pthread -o cpp_server")
+
+# 3. Compile Go Server
+print("--> Building Go Server...", flush=True)
+exec_cmd(f"cd {REMOTE_DIR} && go build -ldflags=\"-s -w\" -o go_server test/Phase15/servers/go_server.go")
+
+# 4. Compile Rust Server
+print("--> Building Rust Server...", flush=True)
+exec_cmd(f"cd {REMOTE_DIR} && rustc -O -C opt-level=3 -C target-cpu=native test/Phase15/servers/rust_server.rs -o rust_server")
 
 print("\n[5/5] === EXECUTING PURE LANGUAGE CPU BENCHMARK SHOWDOWN ===", flush=True)
 
