@@ -1,6 +1,10 @@
 #ifndef VIT_NET_RT_H
 #define VIT_NET_RT_H
 
+#if defined(_WIN32) && !defined(_MM_MALLOC_H_INCLUDED)
+#define _MM_MALLOC_H_INCLUDED 1
+#endif
+
 #include <stddef.h>
 
 #ifdef __cplusplus

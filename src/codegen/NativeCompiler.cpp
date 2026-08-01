@@ -32,15 +32,33 @@ static std::string getExeDir() {
 std::string NativeCompiler::detectClang() {
     std::string exeDir = getExeDir();
 
-    // 1. Check common standard installation paths on Windows (including WinGet WinLibs)
+    // 1. Check relative bundled toolchain paths relative to vit.exe
+    std::vector<std::string> bundledCandidatePaths = {
+        exeDir + "\\tools\\clang\\bin\\clang.exe",
+        exeDir + "\\tools\\clang.exe",
+        exeDir + "\\tools\\bin\\clang.exe",
+        exeDir + "\\..\\tools\\clang\\bin\\clang.exe",
+        exeDir + "\\..\\tools\\clang.exe",
+        exeDir + "\\..\\tools\\bin\\clang.exe",
+        exeDir + "\\..\\..\\tools\\clang\\bin\\clang.exe",
+        exeDir + "\\..\\..\\tools\\clang.exe"
+    };
+
+    for (const auto& path : bundledCandidatePaths) {
+        std::ifstream f(path);
+        if (f.good()) {
+            return "\"" + path + "\"";
+        }
+    }
+
+    // 2. Check common standard installation paths on Windows
     std::vector<std::string> standardCandidatePaths = {
-        "C:\\Users\\luuho\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\bin\\clang.exe",
-        "C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\bin\\clang.exe",
         "C:\\LLVM\\bin\\clang.exe",
         "C:\\Program Files\\LLVM\\bin\\clang.exe",
         "C:\\Program Files (x86)\\LLVM\\bin\\clang.exe",
         "C:\\msys64\\ucrt64\\bin\\clang.exe",
-        "C:\\msys64\\mingw64\\bin\\clang.exe"
+        "C:\\msys64\\mingw64\\bin\\clang.exe",
+        "C:\\Users\\luuho\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\bin\\gcc.exe"
     };
 
     for (const auto& path : standardCandidatePaths) {
@@ -50,29 +68,32 @@ std::string NativeCompiler::detectClang() {
         }
     }
 
-    // 2. Check relative bundled toolchain paths relative to vit.exe
-    std::vector<std::string> relativeCandidatePaths = {
-        exeDir + "\\tools\\clang.exe",
-        exeDir + "\\tools\\clang\\bin\\clang.exe",
-        exeDir + "\\tools\\bin\\clang.exe",
-        exeDir + "\\..\\tools\\clang.exe",
-        exeDir + "\\..\\tools\\clang\\bin\\clang.exe",
-        exeDir + "\\..\\tools\\bin\\clang.exe"
-    };
+    if (std::system("clang --version > NUL 2>&1") == 0) {
+        return "clang";
+    }
+    if (std::system("gcc --version > NUL 2>&1") == 0) {
+        return "gcc";
+    }
 
-    for (const auto& path : relativeCandidatePaths) {
+    return "";
+}
+
+static std::string detectGCC() {
+    std::vector<std::string> candidates = {
+        "C:\\Users\\luuho\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\bin\\gcc.exe",
+        "C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\bin\\gcc.exe",
+        "C:\\msys64\\ucrt64\\bin\\gcc.exe",
+        "C:\\msys64\\mingw64\\bin\\gcc.exe"
+    };
+    for (const auto& path : candidates) {
         std::ifstream f(path);
         if (f.good()) {
             return "\"" + path + "\"";
         }
     }
-
-    // 3. Check if 'clang' is directly available in system PATH
-    int res = std::system("clang --version > NUL 2>&1");
-    if (res == 0) {
-        return "clang";
+    if (std::system("gcc --version > NUL 2>&1") == 0) {
+        return "gcc";
     }
-
     return "";
 }
 
@@ -93,19 +114,42 @@ static std::string normalizeWinPath(std::string path) {
     return path;
 }
 
+static void addRtCandidate(std::string& rtPath, const std::string& exeDir, const std::string& filename) {
+    std::vector<std::string> candidates = {
+        exeDir + "\\src\\runtime\\" + filename,
+        exeDir + "\\..\\src\\runtime\\" + filename,
+        exeDir + "\\..\\..\\src\\runtime\\" + filename,
+        "src/runtime/" + filename
+    };
+    for (const auto& candidate : candidates) {
+        std::ifstream f(candidate);
+        if (f.good()) {
+            rtPath += "\"" + normalizeWinPath(candidate) + "\" ";
+            break;
+        }
+    }
+}
+
 bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const std::string& outputExePath, const std::string& optLevel, const std::string& targetTriple) {
+    NativeCompileOptions opts;
+    opts.optLevel = optLevel;
+    opts.targetTriple = targetTriple;
+    return compileIRWithOptions(irFilePath, outputExePath, opts);
+}
+
+bool NativeCompiler::compileIRWithOptions(const std::string& irFilePath, const std::string& outputExePath, const NativeCompileOptions& options) {
     if (!isClangAvailable()) {
-        std::cerr << "\n[VIT Error] 'clang' compiler was not found on your system PATH or bundled toolchain.\n";
-        std::cerr << "  Run '.\\scripts\\bundle_tools.ps1' or 'winget install LLVM.LLVM' to set it up.\n\n";
+        std::cerr << "\n[VIT Error] 'clang' or 'gcc' compiler was not found on your system PATH or bundled toolchain.\n";
         return false;
     }
 
     std::string winIrPath = normalizeWinPath(irFilePath);
     std::string winExePath = normalizeWinPath(outputExePath);
+    std::string winObjPath = winExePath + ".o";
 
     std::string targetFlag = "";
-    if (!targetTriple.empty()) {
-        std::string effectiveTarget = targetTriple;
+    if (!options.targetTriple.empty()) {
+        std::string effectiveTarget = options.targetTriple;
         if (effectiveTarget == "wasm32-wasi" || effectiveTarget == "wasm32-unknown-wasi") {
             effectiveTarget = "wasm32";
         }
@@ -118,118 +162,115 @@ bool NativeCompiler::compileIRToExecutable(const std::string& irFilePath, const 
 #endif
 
     std::string exeDir = getExeDir();
-    std::vector<std::string> rtCandidates = {
-        exeDir + "\\src\\runtime\\collections_rt.c",
-        exeDir + "\\..\\src\\runtime\\collections_rt.c",
-        exeDir + "\\..\\..\\src\\runtime\\collections_rt.c",
-        "src/runtime/collections_rt.c",
-        exeDir + "\\src\\runtime\\collections_rt.cpp",
-        exeDir + "\\..\\src\\runtime\\collections_rt.cpp",
-        exeDir + "\\..\\..\\src\\runtime\\collections_rt.cpp",
-        "src/runtime/collections_rt.cpp"
-    };
     std::string rtPath = "";
-    for (const auto& candidate : rtCandidates) {
-        std::ifstream f(candidate);
+    addRtCandidate(rtPath, exeDir, "collections_rt.c");
+    addRtCandidate(rtPath, exeDir, "concurrency_rt.c");
+    addRtCandidate(rtPath, exeDir, "net_rt.c");
+    addRtCandidate(rtPath, exeDir, "memory_rt.c");
+    addRtCandidate(rtPath, exeDir, "async_iouring_rt.c");
+    addRtCandidate(rtPath, exeDir, "http_parser_simd.c");
+
+    std::string gccPath = detectGCC();
+    std::string linkerBinary = gccPath.empty() ? clangExecutablePath : gccPath;
+    bool isGCCLinker = (linkerBinary == gccPath);
+
+    if (isGCCLinker) {
+        targetFlag = ""; // GCC uses native Win32/MinGW toolchain flags
+    }
+
+    // LTO, PGO & CPU Native flags
+    std::string extraOptFlags = "";
+    if (options.ltoMode == "thin" || options.ltoMode == "full") {
+        extraOptFlags += isGCCLinker ? "-flto " : "-flto=thin -fuse-ld=lld ";
+    }
+
+    if (options.pgoMode == "generate") {
+        std::string profPath = options.pgoPath.empty() ? "default.profraw" : options.pgoPath;
+        extraOptFlags += "-fprofile-generate=\"" + profPath + "\" ";
+    } else if (options.pgoMode == "use") {
+        std::string profPath = options.pgoPath.empty() ? "default.profdata" : options.pgoPath;
+        extraOptFlags += "-fprofile-use=\"" + profPath + "\" ";
+    }
+
+    if (options.marchNative) {
+        extraOptFlags += "-march=native -mtune=native ";
+    }
+
+    std::string incFlags = "";
+    std::vector<std::string> incCandidates = {
+        exeDir + "\\include",
+        exeDir + "\\..\\include",
+        exeDir + "\\..\\..\\include",
+        "include"
+    };
+    for (const auto& candidate : incCandidates) {
+        std::ifstream f(candidate + "\\runtime\\memory_rt.h");
         if (f.good()) {
-            rtPath += "\"" + normalizeWinPath(candidate) + "\" ";
+            incFlags += "-I\"" + normalizeWinPath(candidate) + "\" ";
             break;
         }
     }
 
-    std::vector<std::string> asyncRtCandidates = {
-        exeDir + "\\src\\runtime\\concurrency_rt.c",
-        exeDir + "\\..\\src\\runtime\\concurrency_rt.c",
-        exeDir + "\\..\\..\\src\\runtime\\concurrency_rt.c",
-        "src/runtime/concurrency_rt.c",
-        exeDir + "\\src\\runtime\\concurrency_rt.cpp",
-        exeDir + "\\..\\src\\runtime\\concurrency_rt.cpp",
-        exeDir + "\\..\\..\\src\\runtime\\concurrency_rt.cpp",
-        "src/runtime/concurrency_rt.cpp"
+    std::vector<std::string> srcCandidates = {
+        exeDir + "\\src",
+        exeDir + "\\..\\src",
+        exeDir + "\\..\\..\\src",
+        "src"
     };
-    for (const auto& candidate : asyncRtCandidates) {
-        std::ifstream f(candidate);
+    for (const auto& candidate : srcCandidates) {
+        std::ifstream f(candidate + "\\runtime\\net_rt.h");
         if (f.good()) {
-            rtPath += "\"" + normalizeWinPath(candidate) + "\" ";
-            break;
-        }
-    }
-
-    std::vector<std::string> netRtCandidates = {
-        exeDir + "\\src\\runtime\\net_rt.c",
-        exeDir + "\\..\\src\\runtime\\net_rt.c",
-        exeDir + "\\..\\..\\src\\runtime\\net_rt.c",
-        "src/runtime/net_rt.c",
-        exeDir + "\\src\\runtime\\net_rt.cpp",
-        exeDir + "\\..\\src\\runtime\\net_rt.cpp",
-        exeDir + "\\..\\..\\src\\runtime\\net_rt.cpp",
-        "src/runtime/net_rt.cpp"
-    };
-    for (const auto& candidate : netRtCandidates) {
-        std::ifstream f(candidate);
-        if (f.good()) {
-            rtPath += "\"" + normalizeWinPath(candidate) + "\" ";
+            incFlags += "-I\"" + normalizeWinPath(candidate) + "\" ";
             break;
         }
     }
 
 #ifdef _WIN32
-    std::string sysLibs = (targetTriple.find("wasm32") != std::string::npos || targetTriple.find("linux") != std::string::npos || targetTriple.find("darwin") != std::string::npos) ? "" : "-lws2_32 ";
-    std::string incFlags = "";
-    std::ifstream checkInc("C:\\Users\\luuho\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\lib\\gcc\\x86_64-w64-mingw32\\15.2.0\\include\\x86intrin.h");
-    if (checkInc.good()) {
-        incFlags = "-isystem \"C:\\Users\\luuho\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\lib\\gcc\\x86_64-w64-mingw32\\15.2.0\\include\" ";
-    }
+    std::string sysLibs = (options.targetTriple.find("wasm32") != std::string::npos || options.targetTriple.find("linux") != std::string::npos || options.targetTriple.find("darwin") != std::string::npos) ? "" : "-lws2_32 ";
 #else
     std::string sysLibs = "";
-    std::string incFlags = "";
 #endif
 
-    std::string cmd;
-    if (!targetTriple.empty() && (targetTriple.find("wasm32") != std::string::npos || targetTriple.find("linux") != std::string::npos || targetTriple.find("darwin") != std::string::npos)) {
-        // Cross-compilation to foreign target object / WASM module
-        cmd = clangExecutablePath + " " + targetFlag + optLevel + " \"" + winIrPath + "\" -c -o \"" + winExePath + "\"";
-    } else {
-        cmd = clangExecutablePath + " " + targetFlag + optLevel + " " + incFlags + "\"" + winIrPath + "\" " + rtPath + sysLibs + "-o \"" + winExePath + "\"";
-    }
-
+    // Foreign target or WASM build
+    if (!options.targetTriple.empty() && (options.targetTriple.find("wasm32") != std::string::npos || options.targetTriple.find("linux") != std::string::npos || options.targetTriple.find("darwin") != std::string::npos)) {
+        std::string cmd = clangExecutablePath + " " + targetFlag + options.optLevel + " " + extraOptFlags + " \"" + winIrPath + "\" -c -o \"" + winExePath + "\"";
 #ifdef _WIN32
-    std::string quietCmd = "cmd.exe /S /C \"" + cmd + " > NUL 2>&1\"";
-    int exitCode = std::system(quietCmd.c_str());
-    if (exitCode != 0) {
-        if (targetTriple.empty()) {
-            std::vector<std::string> minGwLibPaths = {
-                "C:\\msys64\\ucrt64\\lib",
-                "C:\\msys64\\mingw64\\lib",
-                "C:\\Users\\luuho\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\x86_64-w64-mingw32\\lib",
-                "C:\\Users\\luuho\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\lib\\gcc\\x86_64-w64-mingw32\\15.2.0",
-                "C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\x86_64-w64-mingw32\\lib",
-                "C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\lib\\gcc\\x86_64-w64-mingw32\\16.1.0"
-            };
-            std::string fallbackCmd = clangExecutablePath + " " + optLevel + " -fuse-ld=lld --target=x86_64-w64-mingw32 -Wno-override-module";
-            for (const auto& libPath : minGwLibPaths) {
-                fallbackCmd += " -L\"" + libPath + "\"";
-            }
-            fallbackCmd += " " + incFlags + " \"" + winIrPath + "\" " + rtPath + sysLibs + "-o \"" + winExePath + "\"";
-            std::string fallbackFullCmd = "cmd.exe /S /C \"" + fallbackCmd + "\"";
-            exitCode = std::system(fallbackFullCmd.c_str());
-        } else if (targetTriple.find("wasm32") != std::string::npos) {
-            // Host clang binary missing WASM backend target; emit target LLVM IR file directly as output artifact
-            std::ifstream src(winIrPath, std::ios::binary);
-            std::ofstream dst(winExePath, std::ios::binary);
-            dst << src.rdbuf();
-            if (dst.good()) {
-                exitCode = 0;
-            }
-        }
-    }
+        std::string fullCmd = "cmd.exe /S /C \"" + cmd + "\"";
+        return std::system(fullCmd.c_str()) == 0;
 #else
-    int exitCode = std::system(cmd.c_str());
+        return std::system(cmd.c_str()) == 0;
 #endif
-    if (exitCode == 0) {
+    }
+
+    // Step 1: Compile LLVM IR (.ll) to object file (.o) using Clang
+    std::string step1OptFlags = (isGCCLinker && !options.ltoMode.empty()) ? "" : extraOptFlags;
+    std::string step1TargetFlag = options.targetTriple.empty() ? "--target=x86_64-w64-mingw32 -Wno-override-module " : ("--target=" + options.targetTriple + " ");
+    std::string compileObjCmd = clangExecutablePath + " " + step1TargetFlag + options.optLevel + " " + step1OptFlags + " \"" + winIrPath + "\" -c -o \"" + winObjPath + "\"";
+#ifdef _WIN32
+    std::string step1Cmd = "cmd.exe /S /C \"" + compileObjCmd + "\"";
+    int res1 = std::system(step1Cmd.c_str());
+#else
+    int res1 = std::system(compileObjCmd.c_str());
+#endif
+
+    if (res1 != 0) {
+        std::cerr << "\n\033[31m[VIT Error]\033[0m LLVM IR compilation to object file failed.\n";
+        return false;
+    }
+
+    // Step 2: Link object file + C runtime files into executable using GCC or Clang
+    std::string linkCmd = linkerBinary + " " + targetFlag + options.optLevel + " " + extraOptFlags + incFlags + "\"" + winObjPath + "\" " + rtPath + sysLibs + "-o \"" + winExePath + "\"";
+#ifdef _WIN32
+    std::string step2Cmd = "cmd.exe /S /C \"" + linkCmd + "\"";
+    int res2 = std::system(step2Cmd.c_str());
+#else
+    int res2 = std::system(linkCmd.c_str());
+#endif
+
+    if (res2 == 0) {
         return true;
     } else {
-        std::cerr << "\n\033[31m[VIT Error]\033[0m Native compilation failed with exit code: " << exitCode << "\n";
+        std::cerr << "\n\033[31m[VIT Error]\033[0m Linking executable failed with exit code: " << res2 << "\n";
         return false;
     }
 }

@@ -19,28 +19,28 @@ flowchart TD
 ## 📋 Danh Sách Hạng Mục Triển Khai Chi Tiết (Execution Roadmap)
 
 ### 1. 🧬 Arena & Region-Based Memory Allocation (`vit/src/runtime/memory_rt.c`)
-- [ ] **Request-Scoped Arena Allocator**: Phát triển bộ cấp phát bộ nhớ Arena tĩnh. Mỗi HTTP request được gán 1 vùng nhớ `ArenaBlock` (ví dụ 16KB). Kết thúc Request, reset chỉ số `arena.offset = 0` trong 1ns mà không gọi `free()` hay quét rác GC.
-- [ ] **Eliminate Atomic ARC Overhead**: Bổ sung cờ biên dịch `@no_arc` hoặc Scope Lifetimes cho các dữ liệu ngắn hạn trong Request Context.
+- [x] **Request-Scoped Arena Allocator**: Phát triển bộ cấp phát bộ nhớ Arena tĩnh. Mỗi HTTP request được gán 1 vùng nhớ `ArenaBlock` (ví dụ 16KB). Kết thúc Request, reset chỉ số `arena.offset = 0` trong 1ns mà không gọi `free()` hay quét rác GC.
+- [x] **Eliminate Atomic ARC Overhead**: Bổ sung cờ biên dịch `@no_arc` hoặc Scope Lifetimes cho các dữ liệu ngắn hạn trong Request Context.
 
 ---
 
 ### 2. ⚡ Linux `io_uring` Native Async Runtime (`vit/src/runtime/async_iouring_rt.c`)
-- [ ] **Kernel Ring Buffers Integration**: Tích hợp giao thức `io_uring` của Linux Kernel (thay thế cho `epoll` truyền thống) sử dụng 2 vòng đệm `Submission Queue (SQ)` và `Completion Queue (CQ)`.
-- [ ] **Zero-Copy Network I/O (`IORING_OP_PROVIDE_BUFFERS`)**: Cho phép Card Mạng ghi trực tiếp dữ liệu packet vào RAM ứng dụng không qua thao tác copy trung gian (`Kernel-to-User Zero-Copy`).
-- [ ] **Multi-Worker `SO_REUSEPORT` Event Loop**: Mỗi CPU Core kích hoạt 1 `io_uring` instance độc lập song song 100%.
+- [x] **Kernel Ring Buffers Integration**: Tích hợp giao thức `io_uring` của Linux Kernel (thay thế cho `epoll` truyền thống) sử dụng 2 vòng đệm `Submission Queue (SQ)` và `Completion Queue (CQ)`.
+- [x] **Zero-Copy Network I/O (`IORING_OP_PROVIDE_BUFFERS`)**: Cho phép Card Mạng ghi trực tiếp dữ liệu packet vào RAM ứng dụng không qua thao tác copy trung gian (`Kernel-to-User Zero-Copy`).
+- [x] **Multi-Worker `SO_REUSEPORT` Event Loop**: Mỗi CPU Core kích hoạt 1 `io_uring` instance độc lập song song 100%.
 
 ---
 
 ### 3. 🎯 LLVM LTO & PGO Pass Pipeline (`vit/src/codegen/NativeCompiler.cpp`)
-- [ ] **Link-Time Optimization (LTO)**: Tích hợp cờ `-flto=thin` và `-flto=full` trong Clang Toolchain wrapper, cho phép hòa nhập (Inline) 100% các hàm nhỏ trong `std/http.vit` trực tiếp vào Socket Processing Loop.
-- [ ] **Profile-Guided Optimization (PGO)**: Hỗ trợ 2 phase biên dịch `-fprofile-generate` và `-fprofile-use`, tối ưu hóa nhánh rẽ nhánh CPU (`branch prediction`) dựa trên thống kê thực tế.
-- [ ] **Target CPU Native Tuning**: Bổ sung cờ `-march=native -mtune=native` tận dụng toàn bộ tập lệnh của CPU máy chủ.
+- [x] **Link-Time Optimization (LTO)**: Tích hợp cờ `-flto=thin` và `-flto=full` trong Clang Toolchain wrapper, cho phép hòa nhập (Inline) 100% các hàm nhỏ trong `std/http.vit` trực tiếp vào Socket Processing Loop.
+- [x] **Profile-Guided Optimization (PGO)**: Hỗ trợ 2 phase biên dịch `-fprofile-generate` và `-fprofile-use`, tối ưu hóa nhánh rẽ nhánh CPU (`branch prediction`) dựa trên thống kê thực tế.
+- [x] **Target CPU Native Tuning**: Bổ sung cờ `-march=native -mtune=native` tận dụng toàn bộ tập lệnh của CPU máy chủ.
 
 ---
 
 ### 4. ⚡ SIMD Accelerated HTTP Parser (`vito/packages/http_parser` hoặc C FFI)
-- [ ] **AVX2 / SSE4.2 Vectorized Scanning**: Triển khai bóc tách HTTP Request Header bằng tập lệnh SIMD (Vectorized Scan 32-bytes cùng 1 nhịp xung CPU).
-- [ ] **Zero-Allocation Substring Slicing**: Thay vì tạo đối tượng `String` mới cho URL Path / Headers, chỉ trả về con trỏ `Span<u8>` (Byte Pointer + Length).
+- [x] **AVX2 / SSE4.2 Vectorized Scanning**: Triển khai bóc tách HTTP Request Header bằng tập lệnh SIMD (Vectorized Scan 32-bytes cùng 1 nhịp xung CPU).
+- [x] **Zero-Allocation Substring Slicing**: Thay vì tạo đối tượng `String` mới cho URL Path / Headers, chỉ trả về con trỏ `Span<u8>` (Byte Pointer + Length).
 
 ---
 

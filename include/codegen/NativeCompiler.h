@@ -5,6 +5,16 @@
 
 namespace vit {
 
+struct NativeCompileOptions {
+    std::string optLevel = "-O0";
+    std::string targetTriple = "";
+    std::string ltoMode = ""; // "", "thin", "full"
+    std::string pgoMode = ""; // "", "generate", "use"
+    std::string pgoPath = "";
+    bool marchNative = false;
+    bool enableEscapeAnalysis = false;
+};
+
 class NativeCompiler {
 private:
     std::string clangExecutablePath;
@@ -18,6 +28,7 @@ public:
     const std::string& getClangPath() const;
 
     bool compileIRToExecutable(const std::string& irFilePath, const std::string& outputExePath, const std::string& optLevel = "-O0", const std::string& targetTriple = "");
+    bool compileIRWithOptions(const std::string& irFilePath, const std::string& outputExePath, const NativeCompileOptions& options);
     int runExecutable(const std::string& exePath);
 };
 

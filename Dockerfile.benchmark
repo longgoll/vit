@@ -1,0 +1,31 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    gcc \
+    g++ \
+    clang \
+    wrk \
+    curl \
+    git \
+    liburing-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY . /app
+
+RUN gcc -O3 -march=native -flto -Iinclude -Isrc \
+    test/Phase15/benchmark_server.c \
+    src/runtime/memory_rt.c \
+    src/runtime/async_iouring_rt.c \
+    src/runtime/http_parser_simd.c \
+    src/runtime/net_rt.c \
+    -pthread -o benchmark_server
+
+EXPOSE 8080
+
+CMD ["sh", "-c", "/app/benchmark_server 8080 16 & sleep 2 && wrk -t16 -c1000 -d10s --latency http://localhost:8080/json"]

@@ -51,11 +51,16 @@ void printUsage(const char* progName) {
     std::cout << "  -O0, -O1, -O2, -O3     Native compiler optimization levels\n";
     std::cout << "  --target <triple>      Cross-compilation target triple (e.g., x86_64-unknown-linux-gnu, wasm32-wasi)\n";
     std::cout << "  --enable-escape-analysis Enable LLVM ARC Escape Analysis optimization pass\n";
+    std::cout << "  --lto=thin|full        Link-Time Optimization (LTO) pass mode\n";
+    std::cout << "  --pgo-gen=<prof.raw>   Profile-Guided Optimization generation phase\n";
+    std::cout << "  --pgo-use=<prof.data>  Profile-Guided Optimization consumption phase\n";
+    std::cout << "  -march=native          Tune code generation for host CPU vectorization\n";
     std::cout << "  --emit-ast             Print Abstract Syntax Tree (AST) to console\n";
     std::cout << "  --emit-llvm            Print LLVM IR intermediate representation to console\n";
     std::cout << "  -h, --help             Display this help message\n\n";
     std::cout << "Examples:\n";
     std::cout << "  vit build app.vit --target x86_64-unknown-linux-gnu -O3 -o app_linux\n";
+    std::cout << "  vit build app.vit --lto=thin -march=native -O3 -o app_extreme\n";
     std::cout << "  vit build app.vit --target wasm32-wasi -o app.wasm\n";
     std::cout << "  vit build app.vit -O3 --enable-escape-analysis\n";
     std::cout << "  vit repl\n";
@@ -275,8 +280,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    std::string targetTriple;
-    bool enableEscapeAnalysis = false;
+    NativeCompileOptions compileOpts;
 
     // Parse remaining arguments
     for (int i = startIndex; i < argc; ++i) {
@@ -288,10 +292,25 @@ int main(int argc, char* argv[]) {
             outputExePath = argv[++i];
             customOutput = true;
         } else if (arg == "--target" && i + 1 < argc) {
-            targetTriple = argv[++i];
+            compileOpts.targetTriple = argv[++i];
         } else if (arg == "--enable-escape-analysis") {
-            enableEscapeAnalysis = true;
+            compileOpts.enableEscapeAnalysis = true;
+        } else if (arg == "--lto=thin") {
+            compileOpts.ltoMode = "thin";
+        } else if (arg == "--lto=full" || arg == "--lto") {
+            compileOpts.ltoMode = "full";
+        } else if (arg.rfind("--pgo-gen", 0) == 0 || arg.rfind("--pgo-generate", 0) == 0) {
+            compileOpts.pgoMode = "generate";
+            size_t eqPos = arg.find('=');
+            if (eqPos != std::string::npos) compileOpts.pgoPath = arg.substr(eqPos + 1);
+        } else if (arg.rfind("--pgo-use", 0) == 0) {
+            compileOpts.pgoMode = "use";
+            size_t eqPos = arg.find('=');
+            if (eqPos != std::string::npos) compileOpts.pgoPath = arg.substr(eqPos + 1);
+        } else if (arg == "-march=native" || arg == "--march-native") {
+            compileOpts.marchNative = true;
         } else if (arg == "-O0" || arg == "-O1" || arg == "-O2" || arg == "-O3") {
+            compileOpts.optLevel = arg;
             optLevel = arg;
         } else if (arg == "--emit-ast") {
             emitAST = true;
@@ -317,7 +336,7 @@ int main(int argc, char* argv[]) {
         if (lastDot != std::string::npos) {
             baseName = baseName.substr(0, lastDot);
         }
-        if (targetTriple.find("wasm32") != std::string::npos) {
+        if (compileOpts.targetTriple.find("wasm32") != std::string::npos) {
             outputExePath = baseName + ".wasm";
         } else {
             outputExePath = baseName + ".exe";
@@ -336,8 +355,14 @@ int main(int argc, char* argv[]) {
 
     if (mode == Mode::BUILD) {
         std::cout << "\033[36m[VIT]\033[0m Compiling " << sourceFilePath;
-        if (!targetTriple.empty()) {
-            std::cout << " (Target: " << targetTriple << ")";
+        if (!compileOpts.targetTriple.empty()) {
+            std::cout << " (Target: " << compileOpts.targetTriple << ")";
+        }
+        if (!compileOpts.ltoMode.empty()) {
+            std::cout << " [LTO: " << compileOpts.ltoMode << "]";
+        }
+        if (compileOpts.marchNative) {
+            std::cout << " [Native CPU]";
         }
         std::cout << " ...\n";
     }
@@ -376,7 +401,7 @@ int main(int argc, char* argv[]) {
         }
 
         // 2.5 LLVM ARC Escape Analysis Pass (if enabled)
-        if (enableEscapeAnalysis) {
+        if (compileOpts.enableEscapeAnalysis) {
             EscapeAnalyzer escapeAnalyzer;
             auto escapeResult = escapeAnalyzer.analyze(programAST.get());
             std::cout << escapeResult.report << "\n";
@@ -384,7 +409,7 @@ int main(int argc, char* argv[]) {
 
         // 3. Code Generation (LLVM IR)
         LLVMCodeGen codeGen;
-        std::string llvmIR = codeGen.generateIR(programAST.get(), targetTriple);
+        std::string llvmIR = codeGen.generateIR(programAST.get(), compileOpts.targetTriple);
 
         if (emitLLVM) {
             std::cout << "\n--- Generated LLVM IR Code ---\n";
@@ -401,7 +426,7 @@ int main(int argc, char* argv[]) {
 
         // 3. Native Binary Compilation
         NativeCompiler nativeCompiler;
-        bool compileSuccess = nativeCompiler.compileIRToExecutable(irFilePath, outputExePath, optLevel, targetTriple);
+        bool compileSuccess = nativeCompiler.compileIRWithOptions(irFilePath, outputExePath, compileOpts);
 
         if (!compileSuccess) {
             return 1;
@@ -409,16 +434,16 @@ int main(int argc, char* argv[]) {
 
         if (mode == Mode::BUILD) {
             std::cout << "\033[32m✓\033[0m Built \033[1m" << outputExePath << "\033[0m successfully (" << optLevel;
-            if (!targetTriple.empty()) {
-                std::cout << ", target: " << targetTriple;
+            if (!compileOpts.targetTriple.empty()) {
+                std::cout << ", target: " << compileOpts.targetTriple;
             }
             std::cout << ").\n";
         }
 
         // 4. If mode is RUN (or `vit run`), execute binary immediately
         if (mode == Mode::RUN) {
-            if (targetTriple.find("wasm32") != std::string::npos || targetTriple.find("linux") != std::string::npos || targetTriple.find("darwin") != std::string::npos) {
-                std::cout << "\033[33m[VIT Notice]\033[0m Binary built for cross-target '" << targetTriple << "'. Skipping direct execution.\n";
+            if (compileOpts.targetTriple.find("wasm32") != std::string::npos || compileOpts.targetTriple.find("linux") != std::string::npos || compileOpts.targetTriple.find("darwin") != std::string::npos) {
+                std::cout << "\033[33m[VIT Notice]\033[0m Binary built for cross-target '" << compileOpts.targetTriple << "'. Skipping direct execution.\n";
                 return 0;
             }
             nativeCompiler.runExecutable(outputExePath);
