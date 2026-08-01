@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #if defined(_WIN32) && !defined(_MM_MALLOC_H_INCLUDED)
 #define _MM_MALLOC_H_INCLUDED 1
 #endif
@@ -24,6 +25,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <sched.h>
 #endif
 
 #if defined(__linux__)
@@ -71,6 +73,16 @@ static void* worker_thread_loop(void* arg_ptr) {
     vit_iouring_worker_t* worker = warg->worker;
     void (*handler)(int client_fd, const char* req, size_t len) = warg->handler;
     free(warg);
+
+#if defined(__linux__)
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    long num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+    if (num_cores > 0) {
+        CPU_SET(worker->worker_id % num_cores, &cpuset);
+        pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+    }
+#endif
 
     int epoll_fd = epoll_create1(0);
     if (epoll_fd < 0) return 0;

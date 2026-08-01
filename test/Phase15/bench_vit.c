@@ -7,36 +7,66 @@ static unsigned long long fib(unsigned long long n) {
     return fib(n - 1) + fib(n - 2);
 }
 
+#if defined(_MSC_VER) || defined(__MINGW32__)
+#include <malloc.h>
+static void* alloc_aligned64(size_t size) {
+    return _aligned_malloc(size, 64);
+}
+static void free_aligned64(void* ptr) {
+    _aligned_free(ptr);
+}
+#else
+static void* alloc_aligned64(size_t size) {
+    void* ptr = NULL;
+    if (posix_memalign(&ptr, 64, size) != 0) return NULL;
+    return ptr;
+}
+static void free_aligned64(void* ptr) {
+    free(ptr);
+}
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+#define RESTRICT __restrict__
+#else
+#define RESTRICT
+#endif
+
 static void matrix_mult(int n) {
-    double** a = (double**)malloc(n * sizeof(double*));
-    double** b = (double**)malloc(n * sizeof(double*));
-    double** c = (double**)malloc(n * sizeof(double*));
-    for (int i = 0; i < n; i++) {
-        a[i] = (double*)malloc(n * sizeof(double));
-        b[i] = (double*)malloc(n * sizeof(double));
-        c[i] = (double*)calloc(n, sizeof(double));
-        for (int j = 0; j < n; j++) {
-            a[i][j] = 1.0;
-            b[i][j] = 2.0;
-        }
+    size_t sz = (size_t)n * n * sizeof(double);
+    double* RESTRICT a = (double*)alloc_aligned64(sz);
+    double* RESTRICT b = (double*)alloc_aligned64(sz);
+    double* RESTRICT c = (double*)alloc_aligned64(sz);
+
+    for (int i = 0; i < n * n; i++) {
+        a[i] = 1.0;
+        b[i] = 2.0;
+        c[i] = 0.0;
     }
 
-    for (int i = 0; i < n; i++) {
-        for (int k = 0; k < n; k++) {
-            for (int j = 0; j < n; j++) {
-                c[i][j] += a[i][k] * b[k][j];
+    int BLOCK = 32;
+    for (int i0 = 0; i0 < n; i0 += BLOCK) {
+        int imax = (i0 + BLOCK < n) ? (i0 + BLOCK) : n;
+        for (int k0 = 0; k0 < n; k0 += BLOCK) {
+            int kmax = (k0 + BLOCK < n) ? (k0 + BLOCK) : n;
+            for (int j0 = 0; j0 < n; j0 += BLOCK) {
+                int jmax = (j0 + BLOCK < n) ? (j0 + BLOCK) : n;
+
+                for (int i = i0; i < imax; i++) {
+                    for (int k = k0; k < kmax; k++) {
+                        double aik = a[i * n + k];
+                        for (int j = j0; j < jmax; j++) {
+                            c[i * n + j] += aik * b[k * n + j];
+                        }
+                    }
+                }
             }
         }
     }
 
-    for (int i = 0; i < n; i++) {
-        free(a[i]);
-        free(b[i]);
-        free(c[i]);
-    }
-    free(a);
-    free(b);
-    free(c);
+    free_aligned64(a);
+    free_aligned64(b);
+    free_aligned64(c);
 }
 
 int main() {
