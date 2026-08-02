@@ -31,6 +31,11 @@ void vit_net_socket_close(double fd);
 char* vit_net_recv_string(double fd, double max_len);
 double vit_net_send_raw(double fd, const char* data, double len);
 
+// Keep-Alive Support
+double vit_net_socket_keepalive(double fd, double enable);
+char*  vit_net_recv_nonblock(double fd, double max_len);
+double vit_net_socket_is_connected(double fd);
+
 #ifdef __cplusplus
 }
 #endif

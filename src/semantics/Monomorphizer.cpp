@@ -100,14 +100,69 @@ static std::unique_ptr<ExpressionNode> cloneExpr(const ExpressionNode* expr) {
             }
             return std::make_unique<MethodCallASTNode>(cloneExpr(m->getTarget()), m->getMethod(), std::move(args));
         }
+        case NodeType::NullLiteral: {
+            return std::make_unique<NullLiteralASTNode>();
+        }
+        case NodeType::ArrayLiteral: {
+            auto a = static_cast<const ArrayLiteralASTNode*>(expr);
+            std::vector<std::unique_ptr<ExpressionNode>> elems;
+            for (const auto& elem : a->getElements()) {
+                elems.push_back(cloneExpr(elem.get()));
+            }
+            return std::make_unique<ArrayLiteralASTNode>(std::move(elems));
+        }
+        case NodeType::TryExpr: {
+            auto t = static_cast<const TryExprASTNode*>(expr);
+            return std::make_unique<TryExprASTNode>(cloneExpr(t->getExpr()));
+        }
+        case NodeType::OptionalChain: {
+            auto o = static_cast<const OptionalChainASTNode*>(expr);
+            std::vector<std::unique_ptr<ExpressionNode>> args;
+            for (const auto& arg : o->getArgs()) {
+                args.push_back(cloneExpr(arg.get()));
+            }
+            return std::make_unique<OptionalChainASTNode>(cloneExpr(o->getTarget()), o->getMember(), o->getIsMethodCall(), std::move(args));
+        }
+        case NodeType::NullCoalesce: {
+            auto n = static_cast<const NullCoalesceASTNode*>(expr);
+            return std::make_unique<NullCoalesceASTNode>(cloneExpr(n->getLeft()), cloneExpr(n->getRight()));
+        }
+        case NodeType::AwaitExpr: {
+            auto a = static_cast<const AwaitExprASTNode*>(expr);
+            return std::make_unique<AwaitExprASTNode>(cloneExpr(a->getExpr()));
+        }
+        case NodeType::EnumVariantExpr: {
+            auto ev = static_cast<const EnumVariantExprASTNode*>(expr);
+            std::vector<std::unique_ptr<ExpressionNode>> args;
+            for (const auto& arg : ev->getArgs()) {
+                args.push_back(cloneExpr(arg.get()));
+            }
+            return std::make_unique<EnumVariantExprASTNode>(ev->getEnumName(), ev->getVariantName(), std::move(args));
+        }
         default:
             return nullptr;
     }
 }
 
+static std::unique_ptr<StatementNode> cloneStmt(const StatementNode* stmt, const std::unordered_map<std::string, std::string>& typeMap, Monomorphizer* mono);
+
+static std::unique_ptr<BlockASTNode> cloneBlock(const BlockASTNode* block, const std::unordered_map<std::string, std::string>& typeMap, Monomorphizer* mono) {
+    if (!block) return nullptr;
+    std::vector<std::unique_ptr<StatementNode>> stmts;
+    for (const auto& stmt : block->getStatements()) {
+        auto cloned = cloneStmt(stmt.get(), typeMap, mono);
+        if (cloned) stmts.push_back(std::move(cloned));
+    }
+    return std::make_unique<BlockASTNode>(std::move(stmts));
+}
+
 static std::unique_ptr<StatementNode> cloneStmt(const StatementNode* stmt, const std::unordered_map<std::string, std::string>& typeMap, Monomorphizer* mono) {
     if (!stmt) return nullptr;
     switch (stmt->getType()) {
+        case NodeType::Block: {
+            auto b = static_cast<const BlockASTNode*>(stmt);
+            return cloneBlock(b, typeMap, mono);
+        }
         case NodeType::VarDecl: {
             auto v = static_cast<const VarDeclASTNode*>(stmt);
             std::string substituted = mono->substituteType(v->getTypeName(), typeMap);
@@ -120,6 +175,28 @@ static std::unique_ptr<StatementNode> cloneStmt(const StatementNode* stmt, const
         case NodeType::MemberAssignment: {
             auto m = static_cast<const MemberAssignmentASTNode*>(stmt);
             return std::make_unique<MemberAssignmentASTNode>(cloneExpr(m->getTarget()), m->getMember(), cloneExpr(m->getValue()));
+        }
+        case NodeType::ArrayAssignment: {
+            auto a = static_cast<const ArrayAssignmentASTNode*>(stmt);
+            return std::make_unique<ArrayAssignmentASTNode>(cloneExpr(a->getArray()), cloneExpr(a->getIndex()), cloneExpr(a->getValue()));
+        }
+        case NodeType::If: {
+            auto i = static_cast<const IfASTNode*>(stmt);
+            return std::make_unique<IfASTNode>(cloneExpr(i->getCondition()), cloneBlock(i->getThenBlock(), typeMap, mono), cloneBlock(i->getElseBlock(), typeMap, mono));
+        }
+        case NodeType::While: {
+            auto w = static_cast<const WhileASTNode*>(stmt);
+            return std::make_unique<WhileASTNode>(cloneExpr(w->getCondition()), cloneBlock(w->getBody(), typeMap, mono));
+        }
+        case NodeType::For: {
+            auto f = static_cast<const ForASTNode*>(stmt);
+            return std::make_unique<ForASTNode>(cloneStmt(f->getInit(), typeMap, mono), cloneExpr(f->getCondition()), cloneStmt(f->getUpdate(), typeMap, mono), cloneBlock(f->getBody(), typeMap, mono));
+        }
+        case NodeType::Break: {
+            return std::make_unique<BreakASTNode>();
+        }
+        case NodeType::Continue: {
+            return std::make_unique<ContinueASTNode>();
         }
         case NodeType::ExpressionStmt: {
             auto e = static_cast<const ExpressionStmtASTNode*>(stmt);

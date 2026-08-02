@@ -1,0 +1,113 @@
+// VIT Standard Library: Date/Time Operations (std/datetime.vit)
+// Date and time utilities
+
+extern function time(t: number): number;
+extern function puts(s: string): number;
+extern function malloc(n: number): string;
+extern function sprintf(buf: string, fmt: string, val: number): number;
+extern function strcat(dest: string, src: string): string;
+extern function strcpy(dest: string, src: string): string;
+
+// Get current Unix timestamp (seconds since epoch)
+function datetime_now(): number {
+    return time(0);
+}
+
+// Check if a year is a leap year
+function datetime_is_leap(year: number): boolean {
+    if (year % 400 == 0) { return true; }
+    if (year % 100 == 0) { return false; }
+    if (year % 4 == 0) { return true; }
+    return false;
+}
+
+// Get number of days in a month (1-indexed, year needed for Feb)
+function datetime_days_in_month(month: number, year: number): number {
+    if (month == 1) { return 31; }
+    if (month == 2) {
+        if (datetime_is_leap(year)) { return 29; }
+        return 28;
+    }
+    if (month == 3) { return 31; }
+    if (month == 4) { return 30; }
+    if (month == 5) { return 31; }
+    if (month == 6) { return 30; }
+    if (month == 7) { return 31; }
+    if (month == 8) { return 31; }
+    if (month == 9) { return 30; }
+    if (month == 10) { return 31; }
+    if (month == 11) { return 30; }
+    return 31; // December
+}
+
+// Format seconds as HH:MM:SS
+function datetime_format_time(totalSeconds: number): string {
+    let hours: number = totalSeconds / 3600;
+    let remaining: number = totalSeconds - hours * 3600;
+    let minutes: number = remaining / 60;
+    let seconds: number = remaining - minutes * 60;
+    let buf: string = malloc(16);
+    sprintf(buf, "%02.0f", hours);
+    strcat(buf, ":");
+    let mbuf: string = malloc(8);
+    sprintf(mbuf, "%02.0f", minutes);
+    strcat(buf, mbuf);
+    strcat(buf, ":");
+    let sbuf: string = malloc(8);
+    sprintf(sbuf, "%02.0f", seconds);
+    strcat(buf, sbuf);
+    return buf;
+}
+
+// Format milliseconds as human-readable duration
+function datetime_format_duration(ms: number): string {
+    if (ms < 1000) {
+        let buf: string = malloc(32);
+        sprintf(buf, "%.0f", ms);
+        strcat(buf, "ms");
+        return buf;
+    }
+    if (ms < 60000) {
+        let buf: string = malloc(32);
+        sprintf(buf, "%.2f", ms / 1000);
+        strcat(buf, "s");
+        return buf;
+    }
+    if (ms < 3600000) {
+        let buf: string = malloc(32);
+        sprintf(buf, "%.1f", ms / 60000);
+        strcat(buf, "m");
+        return buf;
+    }
+    let buf: string = malloc(32);
+    sprintf(buf, "%.1f", ms / 3600000);
+    strcat(buf, "h");
+    return buf;
+}
+
+// Get day of week name (0=Sunday through 6=Saturday)
+function datetime_weekday_name(dow: number): string {
+    if (dow == 0) { return "Sunday"; }
+    if (dow == 1) { return "Monday"; }
+    if (dow == 2) { return "Tuesday"; }
+    if (dow == 3) { return "Wednesday"; }
+    if (dow == 4) { return "Thursday"; }
+    if (dow == 5) { return "Friday"; }
+    return "Saturday";
+}
+
+// Get month name (1-indexed)
+function datetime_month_name(month: number): string {
+    if (month == 1)  { return "January"; }
+    if (month == 2)  { return "February"; }
+    if (month == 3)  { return "March"; }
+    if (month == 4)  { return "April"; }
+    if (month == 5)  { return "May"; }
+    if (month == 6)  { return "June"; }
+    if (month == 7)  { return "July"; }
+    if (month == 8)  { return "August"; }
+    if (month == 9)  { return "September"; }
+    if (month == 10) { return "October"; }
+    if (month == 11) { return "November"; }
+    return "December";
+}

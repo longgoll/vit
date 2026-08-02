@@ -1,0 +1,71 @@
+// VIT Standard Library: CLI Argument Parsing (std/cli.vit)
+// Command-line interface utilities
+
+extern function puts(s: string): number;
+extern function strlen(s: string): number;
+extern function strcmp(a: string, b: string): int;
+extern function strcat(dest: string, src: string): string;
+extern function strcpy(dest: string, src: string): string;
+extern function malloc(n: number): string;
+
+// Print a formatted CLI usage line
+function cli_usage(prog: string, description: string): void {
+    puts("Usage: " + prog + " <command> [options]");
+    puts("");
+    puts(description);
+    puts("");
+}
+
+// Print a CLI option entry
+function cli_option(flag: string, description: string): void {
+    let line: string = malloc(256);
+    strcpy(line, "  ");
+    strcat(line, flag);
+    // Simple padding
+    let flagLen: number = strlen(flag);
+    let i: number = flagLen;
+    while (i < 24) {
+        strcat(line, " ");
+        i = i + 1;
+    }
+    strcat(line, description);
+    puts(line);
+}
+
+// Check if a flag is present in argv (simulated as string array)
+// Since VIT doesn't have argv access yet, these are helper functions
+// for programs that receive args as strings
+
+// Check if string equals a flag
+function cli_has_flag(arg: string, flag: string): boolean {
+    return strcmp(arg, flag) == 0;
+}
+
+// Print banner with box-drawing
+function cli_banner(title: string, version: string): void {
+    let line: string = "╔════════════════════════════════╗";
+    puts(line);
+    puts("║  " + title + " v" + version);
+    puts("╚════════════════════════════════╝");
+    puts("");
+}
+
+// Print error message in red (ANSI)
+function cli_error(msg: string): void {
+    puts("\033[31m[Error]\033[0m " + msg);
+}
+
+// Print success message in green (ANSI)
+function cli_success(msg: string): void {
+    puts("\033[32m[OK]\033[0m " + msg);
+}
+
+// Print warning in yellow
+function cli_warn(msg: string): void {
+    puts("\033[33m[Warn]\033[0m " + msg);
+}
+
+// Print info in blue
+function cli_info(msg: string): void {
+    puts("\033[36m[Info]\033[0m " + msg);
+}

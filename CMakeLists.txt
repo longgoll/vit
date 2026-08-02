@@ -23,6 +23,7 @@ set(COMMON_SOURCES
     src/tools/Formatter.cpp
     src/tools/Linter.cpp
     src/tools/DevServer.cpp
+    src/utils/Platform.cpp
 )
 
 add_executable(vit ${COMMON_SOURCES} src/main.cpp)

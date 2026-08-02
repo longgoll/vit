@@ -22,6 +22,7 @@ private:
 
     Token number();
     Token stringLiteral();
+    Token templateStringLiteral();
     Token identifierOrKeyword();
 
 public:

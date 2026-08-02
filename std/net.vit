@@ -8,6 +8,10 @@ extern function vit_net_socket_connect(fd: number, host: string, port: number): 
 extern function vit_net_socket_send(fd: number, data: string, len: number): number;
 extern function vit_net_socket_close(fd: number): void;
 extern function vit_net_recv_string(fd: number, max_len: number): string;
+// Keep-Alive support (Fix #11)
+extern function vit_net_socket_keepalive(fd: number, enable: number): number;
+extern function vit_net_recv_nonblock(fd: number, max_len: number): string;
+extern function vit_net_socket_is_connected(fd: number): number;
 
 struct TcpStream {
     fd: number,
@@ -16,8 +20,23 @@ struct TcpStream {
         return vit_net_recv_string(this.fd, maxLen);
     },
 
+    // Fix #11: readNonBlock — poll data mà không block, trả "" nếu không có data
+    function readNonBlock(maxLen: number): string {
+        return vit_net_recv_nonblock(this.fd, maxLen);
+    },
+
     function write(data: string): number {
         return vit_net_socket_send(this.fd, data, 0);
+    },
+
+    // Fix #11: enableKeepAlive — bật SO_KEEPALIVE + TCP probes trên socket này
+    function enableKeepAlive(): void {
+        vit_net_socket_keepalive(this.fd, 1);
+    },
+
+    // Fix #11: isConnected — kiểm tra peer còn sống không (trả true/false)
+    function isConnected(): boolean {
+        return vit_net_socket_is_connected(this.fd) > 0.0;
     },
 
     function close(): void {
@@ -35,6 +54,8 @@ struct TcpListener {
         }
         let stream: TcpStream;
         stream.fd = clientFd;
+        // Fix #11: bật keepalive ngay khi accept connection mới
+        stream.enableKeepAlive();
         return stream;
     },
 

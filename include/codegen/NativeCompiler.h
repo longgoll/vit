@@ -13,6 +13,7 @@ struct NativeCompileOptions {
     std::string pgoPath = "";
     bool marchNative = false;
     bool enableEscapeAnalysis = false;
+    bool verbose = false;
 };
 
 class NativeCompiler {

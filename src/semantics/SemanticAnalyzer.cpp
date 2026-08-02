@@ -1,5 +1,6 @@
 #include "semantics/SemanticAnalyzer.h"
 #include <iostream>
+#include <unordered_set>
 
 namespace vit {
 
@@ -40,11 +41,18 @@ void SemanticAnalyzer::reportError(const std::string& msg) {
 }
 
 std::string SemanticAnalyzer::resolveType(const std::string& typeName) const {
-    auto it = typeAliasTable.find(typeName);
-    if (it != typeAliasTable.end()) {
-        return resolveType(it->second);
+    std::unordered_set<std::string> visited;
+    std::string current = typeName;
+    while (visited.find(current) == visited.end()) {
+        visited.insert(current);
+        auto it = typeAliasTable.find(current);
+        if (it != typeAliasTable.end()) {
+            current = it->second;
+        } else {
+            break;
+        }
     }
-    return typeName;
+    return current;
 }
 
 bool SemanticAnalyzer::analyze(ProgramASTNode* program) {
@@ -64,9 +72,19 @@ bool SemanticAnalyzer::analyze(ProgramASTNode* program) {
 void SemanticAnalyzer::visit(ProgramASTNode* node) {
     enterScope();
 
-    // Register built-in safety functions
+    // Register built-in safety and runtime C functions
     functionTable["panic"] = {"void", {"string"}};
     functionTable["assert"] = {"void", {"boolean", "string"}};
+    functionTable["printf"] = {"int", {}};
+    functionTable["sprintf"] = {"int", {}};
+    functionTable["fflush"] = {"int", {}};
+    functionTable["malloc"] = {"void*", {"int"}};
+    functionTable["free"] = {"void", {"void*"}};
+    functionTable["strlen"] = {"int", {"string"}};
+    functionTable["strcmp"] = {"int", {"string", "string"}};
+    functionTable["strcpy"] = {"string", {"string", "string"}};
+    functionTable["strcat"] = {"string", {"string", "string"}};
+    functionTable["exit"] = {"void", {"int"}};
 
     // First pass: Register structs and function signatures
     for (const auto& stmt : node->getTopLevelStatements()) {
@@ -95,12 +113,27 @@ void SemanticAnalyzer::visit(ProgramASTNode* node) {
         functionTable[func->getName()] = {func->getReturnType(), paramTypes};
     }
 
+    // Pass 1.5: Register top-level variable declarations in global scope
+    for (const auto& stmt : node->getTopLevelStatements()) {
+        if (stmt->getType() == NodeType::VarDecl) {
+            auto varDecl = static_cast<VarDeclASTNode*>(stmt.get());
+            declareVariable(varDecl->getName(), varDecl->getTypeName(), varDecl->getIsConst());
+        }
+    }
+
     // Second pass: Validate function bodies & top level statements
     for (const auto& func : node->getFunctions()) {
         func->accept(this);
     }
     for (const auto& stmt : node->getTopLevelStatements()) {
-        stmt->accept(this);
+        if (stmt->getType() == NodeType::VarDecl) {
+            auto varDecl = static_cast<VarDeclASTNode*>(stmt.get());
+            if (varDecl->getInitializer()) {
+                varDecl->getInitializer()->accept(this);
+            }
+        } else {
+            stmt->accept(this);
+        }
     }
 
     exitScope();
@@ -444,6 +477,13 @@ void SemanticAnalyzer::visit(CallExprASTNode* node) {
 
     auto it = functionTable.find(node->getCallee());
     if (it != functionTable.end()) {
+        const auto& expectedParamTypes = it->second.second;
+        // Check argument count if non-variadic/specific parameter types are registered
+        if (!expectedParamTypes.empty() && node->getArgs().size() != expectedParamTypes.size()) {
+            reportError("Function '" + node->getCallee() + "' expects " +
+                        std::to_string(expectedParamTypes.size()) + " argument(s), but got " +
+                        std::to_string(node->getArgs().size()) + ".");
+        }
         lastInferredType = resolveType(it->second.first);
     } else {
         const SymbolInfo* sym = lookupVariable(node->getCallee());

@@ -221,3 +221,78 @@ char* vit_net_recv_string(double fd_dbl, double max_len_dbl) {
     }
     return g_fast_recv_buf;
 }
+
+// Keep-Alive Support: Enable SO_KEEPALIVE + TCP keepalive probes on a socket
+// Returns 0.0 on success, -1.0 on error
+double vit_net_socket_keepalive(double fd_dbl, double enable_dbl) {
+    int fd = (int)fd_dbl;
+    int opt = ((int)enable_dbl) ? 1 : 0;
+    int res = setsockopt((SOCKET)fd, SOL_SOCKET, SO_KEEPALIVE, (const char*)&opt, sizeof(opt));
+    if (res != 0) return -1.0;
+#if defined(TCP_KEEPIDLE) && defined(TCP_KEEPINTVL) && defined(TCP_KEEPCNT)
+    // Linux: idle=60s, interval=10s, count=3 probes
+    int idle = 60, intvl = 10, cnt = 3;
+    setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE,  (const char*)&idle,  sizeof(idle));
+    setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, (const char*)&intvl, sizeof(intvl));
+    setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT,   (const char*)&cnt,   sizeof(cnt));
+#endif
+    return 0.0;
+}
+
+// Non-blocking recv: trả về data nếu có sẵn, trả về "" ngay nếu không có data
+// Dùng để poll connection trong Keep-Alive loop mà không block
+char* vit_net_recv_nonblock(double fd_dbl, double max_len_dbl) {
+    int fd = (int)fd_dbl;
+    int max_len = (int)max_len_dbl;
+    if (max_len <= 0 || max_len > FAST_BUFFER_SIZE) max_len = FAST_BUFFER_SIZE;
+
+#ifdef _WIN32
+    // Windows: dùng select với timeout = 0 để poll
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET((SOCKET)fd, &fds);
+    struct timeval tv = {0, 0}; // timeout = 0 = non-blocking poll
+    int ready = select(fd + 1, &fds, NULL, NULL, &tv);
+    if (ready <= 0) { g_fast_recv_buf[0] = '\0'; return g_fast_recv_buf; }
+#else
+    // POSIX: MSG_DONTWAIT
+    int bytes_read = recv((SOCKET)fd, g_fast_recv_buf, max_len, MSG_DONTWAIT);
+    if (bytes_read <= 0) { g_fast_recv_buf[0] = '\0'; return g_fast_recv_buf; }
+    g_fast_recv_buf[bytes_read] = '\0';
+    return g_fast_recv_buf;
+#endif
+
+    // Windows path: recv blocking sau khi select confirm có data
+    int bytes_read = recv((SOCKET)fd, g_fast_recv_buf, max_len, 0);
+    if (bytes_read <= 0) { g_fast_recv_buf[0] = '\0'; }
+    else { g_fast_recv_buf[bytes_read] = '\0'; }
+    return g_fast_recv_buf;
+}
+
+// Check if a socket is still connected (peer đã close chưa)
+// Returns 1.0 = connected, 0.0 = disconnected/error
+double vit_net_socket_is_connected(double fd_dbl) {
+    int fd = (int)fd_dbl;
+    if (fd < 0) return 0.0;
+    char probe;
+#ifdef _WIN32
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET((SOCKET)fd, &fds);
+    struct timeval tv = {0, 0};
+    int ready = select(fd + 1, &fds, NULL, NULL, &tv);
+    if (ready < 0) return 0.0;
+    if (ready == 0) return 1.0; // No data yet but socket is alive
+    int r = recv((SOCKET)fd, &probe, 1, MSG_PEEK);
+    return (r == 0) ? 0.0 : 1.0; // 0 = graceful close
+#else
+    int r = recv(fd, &probe, 1, MSG_PEEK | MSG_DONTWAIT);
+    if (r == 0) return 0.0;             // graceful close
+    if (r < 0) {
+        int e = errno;
+        if (e == EAGAIN || e == EWOULDBLOCK) return 1.0; // no data but alive
+        return 0.0; // error = disconnected
+    }
+    return 1.0; // có data, còn sống
+#endif
+}

@@ -56,8 +56,12 @@ private:
     std::unique_ptr<ExpressionNode> parseNullCoalescing();
     std::unique_ptr<ExpressionNode> parseLogicalOr();
     std::unique_ptr<ExpressionNode> parseLogicalAnd();
+    std::unique_ptr<ExpressionNode> parseBitwiseOr();
+    std::unique_ptr<ExpressionNode> parseBitwiseXor();
+    std::unique_ptr<ExpressionNode> parseBitwiseAnd();
     std::unique_ptr<ExpressionNode> parseEquality();
     std::unique_ptr<ExpressionNode> parseRelational();
+    std::unique_ptr<ExpressionNode> parseShift();
     std::unique_ptr<ExpressionNode> parseAdditive();
     std::unique_ptr<ExpressionNode> parseMultiplicative();
     std::unique_ptr<ExpressionNode> parseUnary();

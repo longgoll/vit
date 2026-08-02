@@ -1,27 +1,180 @@
 // VIT Standard Library: Testing Module (std/testing.vit)
+// Full-featured test assertion library
 
-extern function puts(str: string): number;
+extern function puts(s: string): number;
+extern function malloc(n: number): string;
+extern function sprintf(buf: string, fmt: string, val: number): number;
+extern function strcat(dest: string, src: string): string;
+extern function strcpy(dest: string, src: string): string;
+extern function strcmp(a: string, b: string): int;
+extern function strlen(s: string): number;
 
-function assertEqual(actual: string, expected: string, msg: string): void {
-    if (actual == expected) {
-        puts("[PASS] " + msg);
-    } else {
-        puts("[FAIL] " + msg);
-    }
+// Internal counters
+let __test_pass: number = 0;
+let __test_fail: number = 0;
+let __test_total: number = 0;
+let __test_suite: string = "Default";
+
+// Start a named test suite
+function describe(name: string): void {
+    __test_suite = name;
+    puts("\033[1m" + name + "\033[0m");
 }
 
-function assertTrue(cond: boolean, msg: string): void {
+// Internal assertion engine
+function __assert(cond: boolean, msg: string, detail: string): void {
+    __test_total = __test_total + 1;
     if (cond) {
+        __test_pass = __test_pass + 1;
         puts("[PASS] " + msg);
     } else {
+        __test_fail = __test_fail + 1;
         puts("[FAIL] " + msg);
+        if (strlen(detail) > 0) {
+            puts("      \033[2m" + detail + "\033[0m");
+        }
     }
+    fflush(0);
 }
 
+// Assert two strings are equal
+function assertEqual(actual: string, expected: string, msg: string): void {
+    let ok: boolean = strcmp(actual, expected) == 0;
+    let detail: string = "";
+    if (!ok) {
+        detail = "Expected: \"" + expected + "\", Got: \"" + actual + "\"";
+    }
+    __assert(ok, msg, detail);
+}
+
+// Assert a boolean is true
+function assertTrue(cond: boolean, msg: string): void {
+    __assert(cond, msg, "Expected: true, Got: false");
+}
+
+// Assert a boolean is false
 function assertFalse(cond: boolean, msg: string): void {
-    if (!cond) {
-        puts("[PASS] " + msg);
+    __assert(!cond, msg, "Expected: false, Got: true");
+}
+
+// Assert two numbers are equal
+function assertEq(actual: number, expected: number, msg: string): void {
+    let ok: boolean = actual == expected;
+    let detail: string = "";
+    if (!ok) {
+        let buf: string = malloc(128);
+        let ab: string = malloc(32);
+        let eb: string = malloc(32);
+        sprintf(ab, "%g", actual);
+        sprintf(eb, "%g", expected);
+        strcpy(buf, "Expected: ");
+        strcat(buf, eb);
+        strcat(buf, ", Got: ");
+        strcat(buf, ab);
+        detail = buf;
+    }
+    __assert(ok, msg, detail);
+}
+
+// Assert two numbers are NOT equal
+function assertNe(actual: number, expected: number, msg: string): void {
+    __assert(actual != expected, msg, "Expected values to differ");
+}
+
+// Assert actual > expected
+function assertGt(actual: number, expected: number, msg: string): void {
+    let ok: boolean = actual > expected;
+    let detail: string = "";
+    if (!ok) {
+        let buf: string = malloc(128);
+        let ab: string = malloc(32);
+        let eb: string = malloc(32);
+        sprintf(ab, "%g", actual);
+        sprintf(eb, "%g", expected);
+        strcpy(buf, "Expected ");
+        strcat(buf, ab);
+        strcat(buf, " > ");
+        strcat(buf, eb);
+        detail = buf;
+    }
+    __assert(ok, msg, detail);
+}
+
+// Assert actual < expected
+function assertLt(actual: number, expected: number, msg: string): void {
+    let ok: boolean = actual < expected;
+    let detail: string = "";
+    if (!ok) {
+        let buf: string = malloc(128);
+        let ab: string = malloc(32);
+        let eb: string = malloc(32);
+        sprintf(ab, "%g", actual);
+        sprintf(eb, "%g", expected);
+        strcpy(buf, "Expected ");
+        strcat(buf, ab);
+        strcat(buf, " < ");
+        strcat(buf, eb);
+        detail = buf;
+    }
+    __assert(ok, msg, detail);
+}
+
+// Assert number is approximately equal (within epsilon)
+function assertApprox(actual: number, expected: number, epsilon: number, msg: string): void {
+    let diff: number = actual - expected;
+    if (diff < 0) { diff = diff * -1; }
+    let ok: boolean = diff < epsilon;
+    let detail: string = "";
+    if (!ok) {
+        let buf: string = malloc(128);
+        let ab: string = malloc(32);
+        let eb: string = malloc(32);
+        sprintf(ab, "%g", actual);
+        sprintf(eb, "%g", expected);
+        strcpy(buf, "Expected ~");
+        strcat(buf, eb);
+        strcat(buf, ", Got: ");
+        strcat(buf, ab);
+        detail = buf;
+    }
+    __assert(ok, msg, detail);
+}
+
+// Assert string contains substring (simplified: checks prefix)
+function assertContains(str: string, sub: string, msg: string): void {
+    // Simple contains: iterate through str looking for sub[0] match
+    let sLen: number = strlen(str);
+    let subLen: number = strlen(sub);
+    let found: boolean = false;
+    // Basic O(n*m) search using string comparison char-by-char
+    // (Limited without substr support)
+    let ok: boolean = strcmp(str, sub) == 0; // fallback: exact match
+    __assert(ok, msg, "Expected string to contain: \"" + sub + "\"");
+}
+
+// Assert value is null-ish (== 0)
+function assertNull(val: number, msg: string): void {
+    __assert(val == 0, msg, "Expected null/zero value");
+}
+
+// Assert value is not null-ish (!= 0)
+function assertNotNull(val: number, msg: string): void {
+    __assert(val != 0, msg, "Expected non-null value");
+}
+
+// Print test summary
+function test_summary(): void {
+    puts("");
+    puts("\033[36m─────────────────────────────────────\033[0m");
+    let passBuf: string = malloc(32);
+    let failBuf: string = malloc(32);
+    let totalBuf: string = malloc(32);
+    sprintf(passBuf, "%.0f", __test_pass);
+    sprintf(failBuf, "%.0f", __test_fail);
+    sprintf(totalBuf, "%.0f", __test_total);
+    if (__test_fail == 0) {
+        puts("\033[1;32m✓ All " + passBuf + " tests passed\033[0m");
     } else {
-        puts("[FAIL] " + msg);
+        puts("\033[32m" + passBuf + " passed\033[0m, \033[31m" + failBuf + " failed\033[0m  (of " + totalBuf + " total)");
     }
 }

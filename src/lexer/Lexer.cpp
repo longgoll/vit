@@ -6,31 +6,35 @@ namespace vit {
 
 static const std::unordered_map<std::string, TokenType> keywords = {
     {"function", TokenType::KwFunction},
-    {"let", TokenType::KwLet},
-    {"const", TokenType::KwConst},
-    {"if", TokenType::KwIf},
-    {"else", TokenType::KwElse},
-    {"return", TokenType::KwReturn},
-    {"print", TokenType::KwPrint},
-    {"while", TokenType::KwWhile},
-    {"for", TokenType::KwFor},
-    {"break", TokenType::KwBreak},
+    {"fn",       TokenType::KwFn},
+    {"let",      TokenType::KwLet},
+    {"const",    TokenType::KwConst},
+    {"if",       TokenType::KwIf},
+    {"else",     TokenType::KwElse},
+    {"return",   TokenType::KwReturn},
+    {"print",    TokenType::KwPrint},
+    {"while",    TokenType::KwWhile},
+    {"for",      TokenType::KwFor},
+    {"in",       TokenType::KwIn},
+    {"break",    TokenType::KwBreak},
     {"continue", TokenType::KwContinue},
-    {"true", TokenType::KwTrue},
-    {"false", TokenType::KwFalse},
-    {"boolean", TokenType::KwBoolean},
-    {"string", TokenType::KwString},
-    {"void", TokenType::KwVoid},
-    {"struct", TokenType::KwStruct},
-    {"extern", TokenType::KwExtern},
-    {"import", TokenType::KwImport},
-    {"from", TokenType::KwFrom},
-    {"type", TokenType::KwType},
-    {"enum", TokenType::KwEnum},
-    {"match", TokenType::KwMatch},
-    {"null", TokenType::KwNull},
-    {"async", TokenType::KwAsync},
-    {"await", TokenType::KwAwait}
+    {"true",     TokenType::KwTrue},
+    {"false",    TokenType::KwFalse},
+    {"boolean",  TokenType::KwBoolean},
+    {"int",      TokenType::KwInt},
+    {"float",    TokenType::KwFloat},
+    {"string",   TokenType::KwString},
+    {"void",     TokenType::KwVoid},
+    {"struct",   TokenType::KwStruct},
+    {"extern",   TokenType::KwExtern},
+    {"import",   TokenType::KwImport},
+    {"from",     TokenType::KwFrom},
+    {"type",     TokenType::KwType},
+    {"enum",     TokenType::KwEnum},
+    {"match",    TokenType::KwMatch},
+    {"null",     TokenType::KwNull},
+    {"async",    TokenType::KwAsync},
+    {"await",    TokenType::KwAwait}
 };
 
 Lexer::Lexer(std::string sourceCode) : source(std::move(sourceCode)) {}
@@ -93,8 +97,10 @@ Token Lexer::number() {
     size_t startLine = line;
     size_t startColumn = column;
     std::string numStr;
+    bool hasDecimal = false;
 
-    while (!isAtEnd() && (std::isdigit(peek()) || peek() == '.')) {
+    while (!isAtEnd() && (std::isdigit(peek()) || (peek() == '.' && !hasDecimal && std::isdigit(peekNext())))) {
+        if (peek() == '.') hasDecimal = true;
         numStr += advance();
     }
 
@@ -116,6 +122,7 @@ Token Lexer::stringLiteral() {
             else if (escaped == 'r') value += '\r';
             else if (escaped == '"') value += '"';
             else if (escaped == '\\') value += '\\';
+            else if (escaped == '0') value += '\0';
             else value += escaped;
         } else {
             value += advance();
@@ -128,6 +135,40 @@ Token Lexer::stringLiteral() {
 
     advance(); // Consume closing '"'
     return Token(TokenType::StringLiteral, value, startLine, startColumn);
+}
+
+Token Lexer::templateStringLiteral() {
+    size_t startLine = line;
+    size_t startColumn = column;
+    advance(); // Consume opening '`'
+    std::string value;
+
+    while (!isAtEnd() && peek() != '`') {
+        if (peek() == '$' && peekNext() == '{') {
+            // Encode interpolation markers so parser can detect them
+            value += advance(); // '$'
+            value += advance(); // '{'
+        } else if (peek() == '\\' && peekNext() != '\0') {
+            advance();
+            char escaped = advance();
+            if (escaped == 'n') value += '\n';
+            else if (escaped == 't') value += '\t';
+            else if (escaped == '`') value += '`';
+            else if (escaped == '$') value += '$';
+            else if (escaped == '\\') value += '\\';
+            else value += escaped;
+        } else {
+            value += advance();
+        }
+    }
+
+    if (isAtEnd()) {
+        return Token(TokenType::TokUnknown, value, startLine, startColumn);
+    }
+
+    advance(); // Consume closing '`'
+    // Return as template string (StringLiteral). Parser handles ${...} interpolation.
+    return Token(TokenType::StringLiteral, "\x01" + value, startLine, startColumn);
 }
 
 Token Lexer::identifierOrKeyword() {
@@ -161,6 +202,10 @@ Token Lexer::nextToken() {
         return stringLiteral();
     }
 
+    if (c == '`') {
+        return templateStringLiteral();
+    }
+
     if (std::isdigit(c)) {
         return number();
     }
@@ -172,10 +217,28 @@ Token Lexer::nextToken() {
     advance(); // Consume the character
 
     switch (c) {
-        case '+': return Token(TokenType::Plus, "+", startLine, startColumn);
-        case '-': return Token(TokenType::Minus, "-", startLine, startColumn);
-        case '*': return Token(TokenType::Star, "*", startLine, startColumn);
-        case '/': return Token(TokenType::Slash, "/", startLine, startColumn);
+        case '+':
+            if (peek() == '+') { advance(); return Token(TokenType::PlusPlus, "++", startLine, startColumn); }
+            if (peek() == '=') { advance(); return Token(TokenType::PlusEqual, "+=", startLine, startColumn); }
+            return Token(TokenType::Plus, "+", startLine, startColumn);
+
+        case '-':
+            if (peek() == '-') { advance(); return Token(TokenType::MinusMinus, "--", startLine, startColumn); }
+            if (peek() == '=') { advance(); return Token(TokenType::MinusEqual, "-=", startLine, startColumn); }
+            return Token(TokenType::Minus, "-", startLine, startColumn);
+
+        case '*':
+            if (peek() == '=') { advance(); return Token(TokenType::StarEqual, "*=", startLine, startColumn); }
+            return Token(TokenType::Star, "*", startLine, startColumn);
+
+        case '/':
+            if (peek() == '=') { advance(); return Token(TokenType::SlashEqual, "/=", startLine, startColumn); }
+            return Token(TokenType::Slash, "/", startLine, startColumn);
+
+        case '%':
+            if (peek() == '=') { advance(); return Token(TokenType::PercentEqual, "%=", startLine, startColumn); }
+            return Token(TokenType::Percent, "%", startLine, startColumn);
+
         case '.': return Token(TokenType::Dot, ".", startLine, startColumn);
         case '(': return Token(TokenType::LParen, "(", startLine, startColumn);
         case ')': return Token(TokenType::RParen, ")", startLine, startColumn);
@@ -186,62 +249,39 @@ Token Lexer::nextToken() {
         case ':': return Token(TokenType::Colon, ":", startLine, startColumn);
         case ',': return Token(TokenType::Comma, ",", startLine, startColumn);
         case ';': return Token(TokenType::Semicolon, ";", startLine, startColumn);
+        case '~': return Token(TokenType::Tilde, "~", startLine, startColumn);
+        case '^': return Token(TokenType::Caret, "^", startLine, startColumn);
 
         case '=':
-            if (peek() == '=') {
-                advance();
-                return Token(TokenType::EqualEqual, "==", startLine, startColumn);
-            }
-            if (peek() == '>') {
-                advance();
-                return Token(TokenType::Arrow, "=>", startLine, startColumn);
-            }
+            if (peek() == '=') { advance(); return Token(TokenType::EqualEqual, "==", startLine, startColumn); }
+            if (peek() == '>') { advance(); return Token(TokenType::Arrow, "=>", startLine, startColumn); }
             return Token(TokenType::Equal, "=", startLine, startColumn);
 
         case '!':
-            if (peek() == '=') {
-                advance();
-                return Token(TokenType::NotEqual, "!=", startLine, startColumn);
-            }
+            if (peek() == '=') { advance(); return Token(TokenType::NotEqual, "!=", startLine, startColumn); }
             return Token(TokenType::Exclamation, "!", startLine, startColumn);
 
         case '&':
-            if (peek() == '&') {
-                advance();
-                return Token(TokenType::AndAnd, "&&", startLine, startColumn);
-            }
-            return Token(TokenType::TokUnknown, "&", startLine, startColumn);
+            if (peek() == '&') { advance(); return Token(TokenType::AndAnd, "&&", startLine, startColumn); }
+            return Token(TokenType::Ampersand, "&", startLine, startColumn);
 
         case '|':
-            if (peek() == '|') {
-                advance();
-                return Token(TokenType::PipePipe, "||", startLine, startColumn);
-            }
-            return Token(TokenType::TokUnknown, "|", startLine, startColumn);
+            if (peek() == '|') { advance(); return Token(TokenType::PipePipe, "||", startLine, startColumn); }
+            return Token(TokenType::Pipe, "|", startLine, startColumn);
 
         case '<':
-            if (peek() == '=') {
-                advance();
-                return Token(TokenType::LessEqual, "<=", startLine, startColumn);
-            }
+            if (peek() == '=') { advance(); return Token(TokenType::LessEqual, "<=", startLine, startColumn); }
+            if (peek() == '<') { advance(); return Token(TokenType::ShiftLeft, "<<", startLine, startColumn); }
             return Token(TokenType::Less, "<", startLine, startColumn);
 
         case '>':
-            if (peek() == '=') {
-                advance();
-                return Token(TokenType::GreaterEqual, ">=", startLine, startColumn);
-            }
+            if (peek() == '=') { advance(); return Token(TokenType::GreaterEqual, ">=", startLine, startColumn); }
+            if (peek() == '>') { advance(); return Token(TokenType::ShiftRight, ">>", startLine, startColumn); }
             return Token(TokenType::Greater, ">", startLine, startColumn);
 
         case '?':
-            if (peek() == '.') {
-                advance();
-                return Token(TokenType::QuestionDot, "?.", startLine, startColumn);
-            }
-            if (peek() == '?') {
-                advance();
-                return Token(TokenType::NullishCoalescing, "??", startLine, startColumn);
-            }
+            if (peek() == '.') { advance(); return Token(TokenType::QuestionDot, "?.", startLine, startColumn); }
+            if (peek() == '?') { advance(); return Token(TokenType::NullishCoalescing, "??", startLine, startColumn); }
             return Token(TokenType::Question, "?", startLine, startColumn);
 
         default:

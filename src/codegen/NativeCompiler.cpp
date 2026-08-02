@@ -1,4 +1,5 @@
 #include "codegen/NativeCompiler.h"
+#include "utils/Platform.h"
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -15,23 +16,12 @@ NativeCompiler::NativeCompiler() {
     clangExecutablePath = detectClang();
 }
 
-static std::string getExeDir() {
-#ifdef _WIN32
-    char buffer[MAX_PATH];
-    DWORD len = GetModuleFileNameA(NULL, buffer, MAX_PATH);
-    if (len > 0) {
-        std::string path(buffer, len);
-        size_t lastSlash = path.find_last_of("\\/");
-        if (lastSlash != std::string::npos) {
-            return path.substr(0, lastSlash);
-        }
-    }
-#endif
-    return ".";
-}
-
 std::string NativeCompiler::detectClang() {
-    std::string exeDir = getExeDir();
+    static std::string cachedClangPath = "";
+    static bool isDetected = false;
+    if (isDetected) return cachedClangPath;
+
+    std::string exeDir = utils::Platform::getExeDir();
 
     // 1. Check relative bundled toolchain paths relative to vit.exe
     std::vector<std::string> bundledCandidatePaths = {
@@ -48,7 +38,9 @@ std::string NativeCompiler::detectClang() {
     for (const auto& path : bundledCandidatePaths) {
         std::ifstream f(path);
         if (f.good()) {
-            return "\"" + path + "\"";
+            cachedClangPath = "\"" + path + "\"";
+            isDetected = true;
+            return cachedClangPath;
         }
     }
 
@@ -58,44 +50,65 @@ std::string NativeCompiler::detectClang() {
         "C:\\Program Files\\LLVM\\bin\\clang.exe",
         "C:\\Program Files (x86)\\LLVM\\bin\\clang.exe",
         "C:\\msys64\\ucrt64\\bin\\clang.exe",
-        "C:\\msys64\\mingw64\\bin\\clang.exe",
-        "C:\\Users\\luuho\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\bin\\gcc.exe"
+        "C:\\msys64\\mingw64\\bin\\clang.exe"
     };
+
+    auto localAppDataCandidates = utils::Platform::getLocalAppDataToolCandidates();
+    standardCandidatePaths.insert(standardCandidatePaths.end(), localAppDataCandidates.begin(), localAppDataCandidates.end());
 
     for (const auto& path : standardCandidatePaths) {
         std::ifstream f(path);
         if (f.good()) {
-            return "\"" + path + "\"";
+            cachedClangPath = "\"" + path + "\"";
+            isDetected = true;
+            return cachedClangPath;
         }
     }
 
     if (std::system("clang --version > NUL 2>&1") == 0) {
-        return "clang";
+        cachedClangPath = "clang";
+        isDetected = true;
+        return cachedClangPath;
     }
     if (std::system("gcc --version > NUL 2>&1") == 0) {
-        return "gcc";
+        cachedClangPath = "gcc";
+        isDetected = true;
+        return cachedClangPath;
     }
 
-    return "";
+    isDetected = true;
+    cachedClangPath = "";
+    return cachedClangPath;
 }
 
 static std::string detectGCC() {
+    static std::string cachedGCCPath = "";
+    static bool isDetected = false;
+    if (isDetected) return cachedGCCPath;
+
     std::vector<std::string> candidates = {
-        "C:\\Users\\luuho\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\bin\\gcc.exe",
-        "C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\bin\\gcc.exe",
         "C:\\msys64\\ucrt64\\bin\\gcc.exe",
         "C:\\msys64\\mingw64\\bin\\gcc.exe"
     };
+    auto localAppDataCandidates = utils::Platform::getLocalAppDataToolCandidates();
+    candidates.insert(candidates.end(), localAppDataCandidates.begin(), localAppDataCandidates.end());
+
     for (const auto& path : candidates) {
         std::ifstream f(path);
         if (f.good()) {
-            return "\"" + path + "\"";
+            cachedGCCPath = "\"" + path + "\"";
+            isDetected = true;
+            return cachedGCCPath;
         }
     }
     if (std::system("gcc --version > NUL 2>&1") == 0) {
-        return "gcc";
+        cachedGCCPath = "gcc";
+        isDetected = true;
+        return cachedGCCPath;
     }
-    return "";
+    isDetected = true;
+    cachedGCCPath = "";
+    return cachedGCCPath;
 }
 
 bool NativeCompiler::isClangAvailable() const {
@@ -162,7 +175,7 @@ bool NativeCompiler::compileIRWithOptions(const std::string& irFilePath, const s
     }
 #endif
 
-    std::string exeDir = getExeDir();
+    std::string exeDir = utils::Platform::getExeDir();
     std::string rtPath = "";
     addRtCandidate(rtPath, exeDir, "collections_rt.c");
     addRtCandidate(rtPath, exeDir, "concurrency_rt.c");

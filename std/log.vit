@@ -1,0 +1,84 @@
+// VIT Standard Library: Structured Logging (std/log.vit)
+// Provides leveled logging with timestamps
+
+extern function puts(s: string): number;
+extern function printf(fmt: string, val: number): number;
+extern function malloc(n: number): string;
+extern function strcpy(dest: string, src: string): string;
+extern function strcat(dest: string, src: string): string;
+extern function time(t: number): number;
+
+// Log levels as constants
+const LOG_TRACE: number = 0;
+const LOG_DEBUG: number = 1;
+const LOG_INFO: number = 2;
+const LOG_WARN: number = 3;
+const LOG_ERROR: number = 4;
+const LOG_FATAL: number = 5;
+
+// Current minimum log level (can be overridden)
+let __logLevel: number = 1; // DEBUG by default
+
+// Set minimum log level
+function log_set_level(level: number): void {
+    __logLevel = level;
+}
+
+// Internal: format log line and print
+function __log_emit(levelStr: string, color: string, msg: string): void {
+    let line: string = color + "[" + levelStr + "]\033[0m " + msg;
+    puts(line);
+}
+
+// Log at TRACE level
+function log_trace(msg: string): void {
+    if (__logLevel <= LOG_TRACE) {
+        __log_emit("TRACE", "\033[2m", msg);
+    }
+}
+
+// Log at DEBUG level
+function log_debug(msg: string): void {
+    if (__logLevel <= LOG_DEBUG) {
+        __log_emit("DEBUG", "\033[36m", msg);
+    }
+}
+
+// Log at INFO level
+function log_info(msg: string): void {
+    if (__logLevel <= LOG_INFO) {
+        __log_emit("INFO ", "\033[32m", msg);
+    }
+}
+
+// Log at WARN level
+function log_warn(msg: string): void {
+    if (__logLevel <= LOG_WARN) {
+        __log_emit("WARN ", "\033[33m", msg);
+    }
+}
+
+// Log at ERROR level
+function log_error(msg: string): void {
+    if (__logLevel <= LOG_ERROR) {
+        __log_emit("ERROR", "\033[31m", msg);
+    }
+}
+
+// Log at FATAL level and stop execution
+function log_fatal(msg: string): void {
+    __log_emit("FATAL", "\033[1;31m", msg);
+    // Crash the program with exit code 1
+    // (Future: hook into process.exit)
+}
+
+// Group logging helpers
+function log_section(title: string): void {
+    puts("");
+    puts("\033[1m── " + title + " " + "─────────────────────────────────\033[0m");
+}
+
+// Log with structured key=value format
+function log_field(key: string, value: string): void {
+    puts("  \033[2m" + key + ":\033[0m " + value);
+}

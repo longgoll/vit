@@ -1,0 +1,67 @@
+// Test all new features
+import "std/testing";
+
+// Test 1: fn keyword (alias for function)
+fn add(a: int, b: int): int {
+    return a + b;
+}
+
+// Test 2: Compound assignments, ++, --, %
+fn test_operators(): void {
+    let x: int = 10;
+    x += 5;
+    x -= 2;
+    x *= 3;
+    x /= 2;
+    let mod: int = 17 % 5;
+
+    assertEq(x, 19, "compound assignments (10+5-2)*3/2 = 19");
+    assertEq(mod, 2, "17 % 5 = 2");
+}
+
+// Test 3: Bitwise operators
+fn test_bitwise(): void {
+    let andRes: int = 10 & 12;   // 0b1010 & 0b1100 = 0b1000 = 8
+    let orRes: int  = 10 | 12;   // 0b1010 | 0b1100 = 0b1110 = 14
+    let xorRes: int = 10 ^ 12;   // 0b1010 ^ 0b1100 = 0b0110 = 6
+    let shlRes: int = 1 << 3;    // 8
+    let shrRes: int = 16 >> 2;   // 4
+
+    assertEq(andRes, 8,  "10 & 12 = 8");
+    assertEq(orRes,  14, "10 | 12 = 14");
+    assertEq(xorRes, 6,  "10 ^ 12 = 6");
+    assertEq(shlRes, 8,  "1 << 3 = 8");
+    assertEq(shrRes, 4,  "16 >> 2 = 4");
+}
+
+// Test 4: for loop with i++
+fn test_for_loop(): void {
+    let sum: int = 0;
+    for (let i: int = 0; i < 5; i++) {
+        sum += i;
+    }
+    assertEq(sum, 10, "sum 0..4 = 10");
+}
+
+// Test 5: fn keyword + int type
+fn factorial(n: int): int {
+    if (n <= 1) { return 1; }
+    return n * factorial(n - 1);
+}
+
+function main(): void {
+    describe("Vit Language New Features");
+
+    // Test add function
+    let result: int = add(3, 4);
+    assertEq(result, 7, "fn keyword: add(3,4) = 7");
+
+    test_operators();
+    test_bitwise();
+    test_for_loop();
+
+    let fact5: int = factorial(5);
+    assertEq(fact5, 120, "factorial(5) = 120");
+
+    test_summary();
+}

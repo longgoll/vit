@@ -1,5 +1,6 @@
 #include "codegen/JITEngine.h"
 #include "codegen/NativeCompiler.h"
+#include "utils/Platform.h"
 
 #include <chrono>
 #include <cstdlib>
@@ -10,38 +11,24 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <unistd.h>
 #endif
 
 namespace vit {
 
-static std::string getExeDir() {
+static std::string getProcIdStr() {
 #ifdef _WIN32
-    char buffer[MAX_PATH];
-    DWORD len = GetModuleFileNameA(NULL, buffer, MAX_PATH);
-    if (len > 0) {
-        std::string path(buffer, len);
-        size_t lastSlash = path.find_last_of("\\/");
-        if (lastSlash != std::string::npos) {
-            return path.substr(0, lastSlash);
-        }
-    }
+    return std::to_string(GetCurrentProcessId());
+#else
+    return std::to_string(getpid());
 #endif
-    return ".";
-}
-
-static std::string normalizeWinPath(std::string path) {
-#ifdef _WIN32
-    for (char &c : path) {
-        if (c == '/') c = '\\';
-    }
-#endif
-    return path;
 }
 
 JITEngine::JITEngine() {}
 
 std::string JITEngine::detectLLIRunner() {
-    std::string exeDir = getExeDir();
+    std::string exeDir = utils::Platform::getExeDir();
 
     std::vector<std::string> bundledCandidatePaths = {
         exeDir + "\\tools\\clang\\bin\\lli.exe",
@@ -87,7 +74,7 @@ std::string JITEngine::detectLLIRunner() {
 }
 
 std::string JITEngine::getOrBuildRuntimeArchive(NativeCompiler& compiler) {
-    std::string exeDir = getExeDir();
+    std::string exeDir = utils::Platform::getExeDir();
     std::filesystem::path archivePath = std::filesystem::path(exeDir) / "vit_runtime.a";
     
     if (!std::filesystem::exists(archivePath)) {
@@ -166,12 +153,12 @@ std::string JITEngine::getOrBuildRuntimeArchive(NativeCompiler& compiler) {
 
     std::string compileObjsCmd = clangPath + " -O2 -c ";
     if (!incDir.empty()) {
-        compileObjsCmd += "-I\"" + normalizeWinPath(incDir) + "\" ";
+        compileObjsCmd += "-I\"" + utils::Platform::normalizePath(incDir, true) + "\" ";
     }
-    compileObjsCmd += "-I\"" + normalizeWinPath(rtSrcDir) + "\" ";
+    compileObjsCmd += "-I\"" + utils::Platform::normalizePath(rtSrcDir, true) + "\" ";
 
     for (const auto& rt : rtFiles) {
-        compileObjsCmd += "\"" + normalizeWinPath(rtSrcDir + "\\" + rt) + "\" ";
+        compileObjsCmd += "\"" + utils::Platform::normalizePath(rtSrcDir + "\\" + rt, true) + "\" ";
     }
 
 #ifdef _WIN32
@@ -205,7 +192,7 @@ int JITEngine::executeIR(const std::string& llvmIR, const std::string& sourceFil
     if (!lli.empty()) {
         // Fast In-Memory LLVM ORCJIT / ExecutionEngine execution via lli
         auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        std::filesystem::path tempIR = std::filesystem::temp_directory_path() / ("jit_" + std::to_string(now) + ".ll");
+        std::filesystem::path tempIR = std::filesystem::temp_directory_path() / ("jit_" + getProcIdStr() + "_" + std::to_string(now) + ".ll");
 
         std::ofstream out(tempIR);
         if (out.is_open()) {
@@ -230,7 +217,7 @@ int JITEngine::executeIR(const std::string& llvmIR, const std::string& sourceFil
     std::string rtArchive = getOrBuildRuntimeArchive(compiler);
 
     auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    std::filesystem::path tempDir = std::filesystem::temp_directory_path() / ("vit_fastrun_" + std::to_string(now));
+    std::filesystem::path tempDir = std::filesystem::temp_directory_path() / ("vit_fastrun_" + getProcIdStr() + "_" + std::to_string(now));
     std::error_code ec;
     std::filesystem::create_directories(tempDir, ec);
 

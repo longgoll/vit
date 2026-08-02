@@ -9,6 +9,7 @@ namespace vit {
 enum class TokenType {
     // Keywords
     KwFunction, // function
+    KwFn,       // fn (alias for function)
     KwLet,      // let
     KwConst,    // const
     KwIf,       // if
@@ -17,11 +18,14 @@ enum class TokenType {
     KwPrint,    // print
     KwWhile,    // while
     KwFor,      // for
+    KwIn,       // in (for-in loop)
     KwBreak,    // break
     KwContinue, // continue
     KwTrue,     // true
     KwFalse,    // false
     KwBoolean,  // boolean
+    KwInt,      // int (integer type)
+    KwFloat,    // float (float type)
     KwString,   // string
     KwVoid,     // void
     KwStruct,   // struct
@@ -45,6 +49,7 @@ enum class TokenType {
     Minus,              // -
     Star,               // *
     Slash,              // /
+    Percent,            // %
     Equal,              // =
     EqualEqual,         // ==
     NotEqual,           // !=
@@ -54,12 +59,27 @@ enum class TokenType {
     GreaterEqual,       // >=
     AndAnd,             // &&
     PipePipe,           // ||
+    Ampersand,          // & (bitwise AND)
+    Pipe,               // | (bitwise OR)
+    Caret,              // ^ (bitwise XOR)
+    Tilde,              // ~ (bitwise NOT)
+    ShiftLeft,          // <<
+    ShiftRight,         // >>
+    PlusPlus,           // ++
+    MinusMinus,         // --
+    PlusEqual,          // +=
+    MinusEqual,         // -=
+    StarEqual,          // *=
+    SlashEqual,         // /=
+    PercentEqual,       // %=
     Exclamation,        // !
     Dot,                // .
     Arrow,              // =>
     Question,           // ?
     QuestionDot,        // ?.
     NullishCoalescing,  // ??
+    Backtick,           // ` (template string start/end)
+    DollarLBrace,       // ${ (template interpolation start)
 
     // Delimiters
     LParen,    // (
@@ -90,6 +110,7 @@ struct Token {
 inline std::string_view tokenTypeToString(TokenType type) {
     switch (type) {
         case TokenType::KwFunction: return "function";
+        case TokenType::KwFn: return "fn";
         case TokenType::KwLet: return "let";
         case TokenType::KwConst: return "const";
         case TokenType::KwIf: return "if";
@@ -98,11 +119,14 @@ inline std::string_view tokenTypeToString(TokenType type) {
         case TokenType::KwPrint: return "print";
         case TokenType::KwWhile: return "while";
         case TokenType::KwFor: return "for";
+        case TokenType::KwIn: return "in";
         case TokenType::KwBreak: return "break";
         case TokenType::KwContinue: return "continue";
         case TokenType::KwTrue: return "true";
         case TokenType::KwFalse: return "false";
         case TokenType::KwBoolean: return "boolean";
+        case TokenType::KwInt: return "int";
+        case TokenType::KwFloat: return "float";
         case TokenType::KwString: return "string";
         case TokenType::KwVoid: return "void";
         case TokenType::KwStruct: return "struct";
@@ -122,6 +146,7 @@ inline std::string_view tokenTypeToString(TokenType type) {
         case TokenType::Minus: return "-";
         case TokenType::Star: return "*";
         case TokenType::Slash: return "/";
+        case TokenType::Percent: return "%";
         case TokenType::Equal: return "=";
         case TokenType::EqualEqual: return "==";
         case TokenType::NotEqual: return "!=";
@@ -131,12 +156,27 @@ inline std::string_view tokenTypeToString(TokenType type) {
         case TokenType::GreaterEqual: return ">=";
         case TokenType::AndAnd: return "&&";
         case TokenType::PipePipe: return "||";
+        case TokenType::Ampersand: return "&";
+        case TokenType::Pipe: return "|";
+        case TokenType::Caret: return "^";
+        case TokenType::Tilde: return "~";
+        case TokenType::ShiftLeft: return "<<";
+        case TokenType::ShiftRight: return ">>";
+        case TokenType::PlusPlus: return "++";
+        case TokenType::MinusMinus: return "--";
+        case TokenType::PlusEqual: return "+=";
+        case TokenType::MinusEqual: return "-=";
+        case TokenType::StarEqual: return "*=";
+        case TokenType::SlashEqual: return "/=";
+        case TokenType::PercentEqual: return "%=";
         case TokenType::Exclamation: return "!";
         case TokenType::Dot: return ".";
         case TokenType::Arrow: return "=>";
         case TokenType::Question: return "?";
         case TokenType::QuestionDot: return "?.";
         case TokenType::NullishCoalescing: return "??";
+        case TokenType::Backtick: return "`";
+        case TokenType::DollarLBrace: return "${";
         case TokenType::LParen: return "(";
         case TokenType::RParen: return ")";
         case TokenType::LBrace: return "{";

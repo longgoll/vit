@@ -6,6 +6,7 @@ typedef unsigned long long size_t;
 
 void* malloc(size_t size);
 void* calloc(size_t num, size_t size);
+void* realloc(void* ptr, size_t size);
 void free(void* ptr);
 int strcmp(const char* s1, const char* s2);
 size_t strlen(const char* s);
@@ -165,6 +166,20 @@ void __vit_hashmap_remove(void* handle, const char* key) {
             map->entries[index].key = NULL;
             map->entries[index].value = NULL;
             map->count--;
+
+            // Backward shift entries in open-addressing probe chain
+            int i = index;
+            int j = (i + 1) % map->capacity;
+            while (map->entries[j].key != NULL) {
+                unsigned int k = hash_string(map->entries[j].key) % map->capacity;
+                if ((i <= j) ? (k <= i || k > j) : (k <= i && k > j)) {
+                    map->entries[i] = map->entries[j];
+                    map->entries[j].key = NULL;
+                    map->entries[j].value = NULL;
+                    i = j;
+                }
+                j = (j + 1) % map->capacity;
+            }
             return;
         }
         index = (index + 1) % map->capacity;
@@ -192,10 +207,19 @@ void __vit_hashmap_free(void* handle) {
 // 3. JSON Helper Utilities
 // ==========================================
 
+static char* g_json_ring_buf[8] = {NULL};
+static int g_json_ring_idx = 0;
+
 const char* __vit_json_escape_string(const char* str) {
     if (!str) return "\"\"";
     size_t len = strlen(str);
-    char* buf = (char*)malloc(len * 2 + 3);
+    size_t needed = len * 2 + 3;
+
+    g_json_ring_idx = (g_json_ring_idx + 1) % 8;
+    g_json_ring_buf[g_json_ring_idx] = (char*)realloc(g_json_ring_buf[g_json_ring_idx], needed);
+    char* buf = g_json_ring_buf[g_json_ring_idx];
+    if (!buf) return "\"\"";
+
     size_t pos = 0;
     buf[pos++] = '"';
     for (size_t i = 0; i < len; i++) {
@@ -212,18 +236,22 @@ const char* __vit_json_escape_string(const char* str) {
     return buf;
 }
 
+static char g_char_at_buf[8][4];
+static int g_char_at_idx = 0;
+
 const char* __vit_char_at(const char* str, double index) {
     if (!str) return "";
     int idx = (int)index;
     size_t len = strlen(str);
     if (idx < 0 || (size_t)idx >= len) return "";
-    char* res = (char*)malloc(2);
-    res[0] = str[idx];
-    res[1] = '\0';
-    return res;
+    g_char_at_idx = (g_char_at_idx + 1) % 8;
+    g_char_at_buf[g_char_at_idx][0] = str[idx];
+    g_char_at_buf[g_char_at_idx][1] = '\0';
+    return g_char_at_buf[g_char_at_idx];
 }
 
 double __vit_strlen(const char* str) {
     if (!str) return 0.0;
     return (double)strlen(str);
 }
+

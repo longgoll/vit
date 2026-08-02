@@ -1,0 +1,104 @@
+// VIT Standard Library: Formatting Module (std/fmt.vit)
+// String formatting utilities
+
+extern function sprintf(buf: string, fmt: string, val: number): number;
+extern function malloc(size: number): string;
+extern function free(ptr: string): void;
+extern function strlen(s: string): number;
+extern function strcat(dest: string, src: string): string;
+extern function strcpy(dest: string, src: string): string;
+
+// Format a number with specific decimal places
+function fmt_fixed(n: number, decimals: number): string {
+    let buf: string = malloc(64);
+    let d: number = decimals;
+    if (d == 0) {
+        sprintf(buf, "%.0f", n);
+    }
+    if (d == 1) {
+        sprintf(buf, "%.1f", n);
+    }
+    if (d == 2) {
+        sprintf(buf, "%.2f", n);
+    }
+    if (d == 3) {
+        sprintf(buf, "%.3f", n);
+    }
+    if (d == 4) {
+        sprintf(buf, "%.4f", n);
+    }
+    if (d == 6) {
+        sprintf(buf, "%.6f", n);
+    }
+    return buf;
+}
+
+// Format a number in scientific notation
+function fmt_sci(n: number): string {
+    let buf: string = malloc(64);
+    sprintf(buf, "%e", n);
+    return buf;
+}
+
+// Format integer
+function fmt_int(n: number): string {
+    let buf: string = malloc(32);
+    sprintf(buf, "%ld", n);
+    return buf;
+}
+
+// Format with %g (auto choose between fixed/sci)
+function fmt_num(n: number): string {
+    let buf: string = malloc(64);
+    sprintf(buf, "%g", n);
+    return buf;
+}
+
+// Pad a string on the left to a given width
+function fmt_pad_left(s: string, width: number, padChar: string): string {
+    let sLen: number = strlen(s);
+    let pad: number = width - sLen;
+    if (pad <= 0) {
+        return s;
+    }
+    let result: string = malloc(512);
+    strcpy(result, "");
+    let i: number = 0;
+    while (i < pad) {
+        strcat(result, padChar);
+        i = i + 1;
+    }
+    strcat(result, s);
+    return result;
+}
+
+// Pad a string on the right to a given width
+function fmt_pad_right(s: string, width: number, padChar: string): string {
+    let sLen: number = strlen(s);
+    let pad: number = width - sLen;
+    if (pad <= 0) {
+        return s;
+    }
+    let result: string = malloc(512);
+    strcpy(result, s);
+    let i: number = 0;
+    while (i < pad) {
+        strcat(result, padChar);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Format bytes into human-readable size
+function fmt_bytes(bytes: number): string {
+    if (bytes < 1024) {
+        return fmt_fixed(bytes, 0) + " B";
+    }
+    if (bytes < 1048576) {
+        return fmt_fixed(bytes / 1024, 1) + " KB";
+    }
+    if (bytes < 1073741824) {
+        return fmt_fixed(bytes / 1048576, 1) + " MB";
+    }
+    return fmt_fixed(bytes / 1073741824, 2) + " GB";
+}

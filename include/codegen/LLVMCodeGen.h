@@ -55,7 +55,10 @@ private:
     std::vector<LoopTarget> loopStack;
     std::vector<std::vector<VarSymbol>> heapScopeStack;
     std::unordered_map<std::string, VarSymbol> symbolTable;
+    std::unordered_map<std::string, VarSymbol> globalSymbolTable;
+    ProgramASTNode* currentProgram = nullptr;
 
+    const VarSymbol* findSymbol(const std::string& name) const;
     std::string newReg();
     std::string newLabel(const std::string& prefix);
     std::string resolveType(const std::string& typeName) const;
