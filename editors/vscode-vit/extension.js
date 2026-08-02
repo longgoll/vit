@@ -143,7 +143,13 @@ function runActiveVitFile() {
     }
 
     vitTerminal.show();
-    vitTerminal.sendText(`"${vitBin}" "${filePath}"`);
+    let command;
+    if (vitBin.includes(' ') || vitBin.includes('\\') || vitBin.includes('/')) {
+        command = `& "${vitBin}" "${filePath}"`;
+    } else {
+        command = `${vitBin} "${filePath}"`;
+    }
+    vitTerminal.sendText(command);
 }
 
 function registerNativeProviders(context) {
