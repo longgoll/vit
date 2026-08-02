@@ -323,6 +323,9 @@ int main(int argc, char* argv[]) {
             emitAST = true;
         } else if (arg == "--emit-llvm") {
             emitLLVM = true;
+        } else if (arg == "--save-temps") {
+            // Keep temporary build files like output.ll
+            emitLLVM = true;
         } else if (arg[0] != '-') {
             if (sourceFilePath.empty()) {
                 sourceFilePath = arg;

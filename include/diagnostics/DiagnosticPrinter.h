@@ -13,7 +13,8 @@ public:
         const std::string& filePath,
         const std::string& sourceCode,
         size_t line,
-        size_t column
+        size_t column,
+        const std::string& hint = ""
     );
 };
 
