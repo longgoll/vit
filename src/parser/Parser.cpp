@@ -755,8 +755,13 @@ std::unique_ptr<ExpressionNode> Parser::parsePrimary() {
     if (check(TokenType::NumberLiteral)) {
         Token numTok = curToken;
         advance();
-        double val = std::stod(numTok.lexeme);
-        expr = std::make_unique<NumberLiteralASTNode>(val);
+        if (numTok.lexeme.find('.') == std::string::npos && numTok.lexeme.find('e') == std::string::npos && numTok.lexeme.find('E') == std::string::npos) {
+            int64_t iVal = std::stoll(numTok.lexeme);
+            expr = std::make_unique<NumberLiteralASTNode>(iVal);
+        } else {
+            double val = std::stod(numTok.lexeme);
+            expr = std::make_unique<NumberLiteralASTNode>(val);
+        }
     } else if (check(TokenType::StringLiteral)) {
         Token strTok = curToken;
         advance();

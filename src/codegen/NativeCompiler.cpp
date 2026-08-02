@@ -185,7 +185,7 @@ bool NativeCompiler::compileIRWithOptions(const std::string& irFilePath, const s
     // LTO, PGO & CPU Native flags
     std::string extraOptFlags = "";
     if (options.optLevel == "-O3" || options.optLevel == "-O2") {
-        extraOptFlags += "-funroll-loops -fvectorize ";
+        extraOptFlags += isGCCLinker ? "-funroll-loops -ftree-vectorize " : "-funroll-loops -fvectorize ";
     }
 
     if (options.ltoMode == "thin" || options.ltoMode == "full") {

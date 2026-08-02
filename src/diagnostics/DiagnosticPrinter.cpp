@@ -59,7 +59,7 @@ void DiagnosticPrinter::printError(
                 if (targetLine[i] == '\t') std::cerr << "\t";
                 else std::cerr << " ";
             }
-            std::cerr << "^" << RESET << "\n";
+            std::cerr << "^^^" << RESET << "\n";
             std::cerr << CYAN << "   " << pad << " |\n" << RESET;
         }
     }

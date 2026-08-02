@@ -33,6 +33,7 @@ std::string LLVMCodeGen::getLLVMType(const std::string& vitTypeRaw) {
         vitType = vitType.substr(0, anglePos);
     }
     if (vitType == "boolean") return "i1";
+    if (vitType == "int" || vitType == "i64" || vitType == "integer") return "i64";
     if (vitType == "string") return "i8*";
     if (vitType == "null") return "i8*";
     if (vitType == "void") return "void";
@@ -106,6 +107,7 @@ std::string LLVMCodeGen::generateIR(ProgramASTNode* program, const std::string& 
     fullModule << "target triple = \"" << effectiveTriple << "\"\n\n";
 
     fullModule << "@.fmt_num = private unnamed_addr constant [4 x i8] c\"%f\\0A\\00\", align 1\n";
+    fullModule << "@.fmt_int = private unnamed_addr constant [6 x i8] c\"%lld\\0A\\00\", align 1\n";
     fullModule << "@.fmt_str = private unnamed_addr constant [4 x i8] c\"%s\\0A\\00\", align 1\n";
     fullModule << "@.fmt_bool_true = private unnamed_addr constant [6 x i8] c\"true\\0A\\00\", align 1\n";
     fullModule << "@.fmt_bool_false = private unnamed_addr constant [7 x i8] c\"false\\0A\\00\", align 1\n";
@@ -512,14 +514,19 @@ void LLVMCodeGen::visit(ArrayAssignmentASTNode* node) {
 }
 
 void LLVMCodeGen::visit(NumberLiteralASTNode* node) {
-    std::ostringstream simpleSS;
-    simpleSS << node->getValue();
-    std::string str = simpleSS.str();
-    if (str.find('.') == std::string::npos && str.find('e') == std::string::npos) {
-        str += ".0";
+    if (node->isInteger()) {
+        lastResultReg = std::to_string(node->getIntValue());
+        lastResultType = "int";
+    } else {
+        std::ostringstream simpleSS;
+        simpleSS << node->getValue();
+        std::string str = simpleSS.str();
+        if (str.find('.') == std::string::npos && str.find('e') == std::string::npos) {
+            str += ".0";
+        }
+        lastResultReg = str;
+        lastResultType = "number";
     }
-    lastResultReg = str;
-    lastResultType = "number";
 }
 
 void LLVMCodeGen::visit(BooleanLiteralASTNode* node) {
@@ -902,21 +909,45 @@ void LLVMCodeGen::visit(BinaryOpASTNode* node) {
             lastResultType = "string";
             return;
         }
-        emitIndent();
-        irStream << resultReg << " = fadd double " << lhs << ", " << rhs << "\n";
-        lastResultType = "number";
+        if (lhsType == "int" && rhsType == "int") {
+            emitIndent();
+            irStream << resultReg << " = add i64 " << lhs << ", " << rhs << "\n";
+            lastResultType = "int";
+        } else {
+            emitIndent();
+            irStream << resultReg << " = fadd double " << lhs << ", " << rhs << "\n";
+            lastResultType = "number";
+        }
     } else if (op == "-") {
-        emitIndent();
-        irStream << resultReg << " = fsub double " << lhs << ", " << rhs << "\n";
-        lastResultType = "number";
+        if (lhsType == "int" && rhsType == "int") {
+            emitIndent();
+            irStream << resultReg << " = sub i64 " << lhs << ", " << rhs << "\n";
+            lastResultType = "int";
+        } else {
+            emitIndent();
+            irStream << resultReg << " = fsub double " << lhs << ", " << rhs << "\n";
+            lastResultType = "number";
+        }
     } else if (op == "*") {
-        emitIndent();
-        irStream << resultReg << " = fmul double " << lhs << ", " << rhs << "\n";
-        lastResultType = "number";
+        if (lhsType == "int" && rhsType == "int") {
+            emitIndent();
+            irStream << resultReg << " = mul i64 " << lhs << ", " << rhs << "\n";
+            lastResultType = "int";
+        } else {
+            emitIndent();
+            irStream << resultReg << " = fmul double " << lhs << ", " << rhs << "\n";
+            lastResultType = "number";
+        }
     } else if (op == "/") {
-        emitIndent();
-        irStream << resultReg << " = fdiv double " << lhs << ", " << rhs << "\n";
-        lastResultType = "number";
+        if (lhsType == "int" && rhsType == "int") {
+            emitIndent();
+            irStream << resultReg << " = sdiv i64 " << lhs << ", " << rhs << "\n";
+            lastResultType = "int";
+        } else {
+            emitIndent();
+            irStream << resultReg << " = fdiv double " << lhs << ", " << rhs << "\n";
+            lastResultType = "number";
+        }
     } else if (op == ">" || op == "<" || op == "==" || op == "!=" || op == ">=" || op == "<=") {
         if (lhsType == "null" || rhsType == "null" || (lhsType == "string" && rhsType == "string")) {
             if (lhsType == "string" && rhsType == "string") {
@@ -940,17 +971,31 @@ void LLVMCodeGen::visit(BinaryOpASTNode* node) {
             return;
         }
 
-        std::string condCode = "oeq";
-        if (op == ">") condCode = "ogt";
-        else if (op == "<") condCode = "olt";
-        else if (op == "==") condCode = "oeq";
-        else if (op == "!=") condCode = "one";
-        else if (op == ">=") condCode = "oge";
-        else if (op == "<=") condCode = "ole";
+        if (lhsType == "int" && rhsType == "int") {
+            std::string condCode = "eq";
+            if (op == ">") condCode = "sgt";
+            else if (op == "<") condCode = "slt";
+            else if (op == "==") condCode = "eq";
+            else if (op == "!=") condCode = "ne";
+            else if (op == ">=") condCode = "sge";
+            else if (op == "<=") condCode = "sle";
 
-        emitIndent();
-        irStream << resultReg << " = fcmp " << condCode << " double " << lhs << ", " << rhs << "\n";
-        lastResultType = "boolean";
+            emitIndent();
+            irStream << resultReg << " = icmp " << condCode << " i64 " << lhs << ", " << rhs << "\n";
+            lastResultType = "boolean";
+        } else {
+            std::string condCode = "oeq";
+            if (op == ">") condCode = "ogt";
+            else if (op == "<") condCode = "olt";
+            else if (op == "==") condCode = "oeq";
+            else if (op == "!=") condCode = "one";
+            else if (op == ">=") condCode = "oge";
+            else if (op == "<=") condCode = "ole";
+
+            emitIndent();
+            irStream << resultReg << " = fcmp " << condCode << " double " << lhs << ", " << rhs << "\n";
+            lastResultType = "boolean";
+        }
     }
 
     lastResultReg = resultReg;
@@ -1384,6 +1429,13 @@ void LLVMCodeGen::visit(PrintASTNode* node) {
 
             irStream << mergeLabel << ":\n";
             currentBlockLabel = mergeLabel;
+        } else if (valType == "int" || valType == "i64" || valType == "integer") {
+            std::string strPtr = newReg();
+            emitIndent();
+            irStream << strPtr << " = getelementptr inbounds [6 x i8], [6 x i8]* @.fmt_int, i64 0, i64 0\n";
+            std::string printCall = newReg();
+            emitIndent();
+            irStream << printCall << " = call i32 (i8*, ...) @printf(i8* " << strPtr << ", i64 " << valReg << ")\n";
         } else {
             std::string strPtr = newReg();
             emitIndent();

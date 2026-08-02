@@ -10,11 +10,18 @@ namespace vit {
 class NumberLiteralASTNode : public ExpressionNode {
 private:
     double value;
+    int64_t intVal = 0;
+    bool isInt = false;
 
 public:
-    explicit NumberLiteralASTNode(double val) : value(val) {}
+    explicit NumberLiteralASTNode(double val) : value(val), isInt(false) {}
+    explicit NumberLiteralASTNode(int64_t val) : value((double)val), intVal(val), isInt(true) {}
+    NumberLiteralASTNode(double val, int64_t iVal, bool isInteger)
+        : value(val), intVal(iVal), isInt(isInteger) {}
 
     double getValue() const { return value; }
+    int64_t getIntValue() const { return isInt ? intVal : (int64_t)value; }
+    bool isInteger() const { return isInt; }
 
     NodeType getType() const override { return NodeType::NumberLiteral; }
     void accept(ASTVisitor* visitor) override { visitor->visit(this); }
