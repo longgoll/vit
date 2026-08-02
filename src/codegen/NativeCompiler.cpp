@@ -1,5 +1,6 @@
 #include "codegen/NativeCompiler.h"
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -273,6 +274,9 @@ bool NativeCompiler::compileIRWithOptions(const std::string& irFilePath, const s
 #else
     int res2 = std::system(linkCmd.c_str());
 #endif
+
+    // Clean up intermediate object file
+    std::filesystem::remove(winObjPath);
 
     if (res2 == 0) {
         return true;

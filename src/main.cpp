@@ -15,6 +15,8 @@
 #include "tools/DevServer.h"
 
 #include <algorithm>
+#include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -334,18 +336,45 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Determine default output binary name if not explicitly set
-    if (!customOutput) {
-        std::string baseName = sourceFilePath;
-        size_t lastDot = baseName.find_last_of(".");
-        if (lastDot != std::string::npos) {
-            baseName = baseName.substr(0, lastDot);
+    struct TempDirCleanup {
+        std::filesystem::path path;
+        bool active = false;
+        ~TempDirCleanup() {
+            if (active && !path.empty()) {
+                std::error_code ec;
+                std::filesystem::remove_all(path, ec);
+            }
         }
-        if (compileOpts.targetTriple.find("wasm32") != std::string::npos) {
-            outputExePath = baseName + ".wasm";
-        } else {
-            outputExePath = baseName + ".exe";
+    } tempCleanup;
+
+    // Determine output paths based on execution mode
+    if (mode == Mode::RUN) {
+        auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        tempCleanup.path = std::filesystem::temp_directory_path() / ("vit_run_" + std::to_string(now));
+        std::error_code ec;
+        std::filesystem::create_directories(tempCleanup.path, ec);
+        tempCleanup.active = true;
+
+        irFilePath = (tempCleanup.path / "output.ll").string();
+        outputExePath = (tempCleanup.path / "app.exe").string();
+    } else {
+        std::filesystem::path srcP(sourceFilePath);
+        std::string stem = srcP.stem().string();
+        if (!customOutput) {
+            std::error_code ec;
+            std::filesystem::create_directories("build", ec);
+            if (compileOpts.targetTriple.find("wasm32") != std::string::npos) {
+                outputExePath = (std::filesystem::path("build") / (stem + ".wasm")).string();
+            } else {
+                outputExePath = (std::filesystem::path("build") / (stem + ".exe")).string();
+            }
         }
+        std::filesystem::path parentDir = std::filesystem::path(outputExePath).parent_path();
+        if (!parentDir.empty()) {
+            std::error_code ec;
+            std::filesystem::create_directories(parentDir, ec);
+        }
+        irFilePath = (parentDir.empty() ? std::filesystem::path("output.ll") : (parentDir / "output.ll")).string();
     }
 
     // Read source code from file
@@ -438,6 +467,10 @@ int main(int argc, char* argv[]) {
         }
 
         if (mode == Mode::BUILD) {
+            if (!emitLLVM) {
+                std::error_code ec;
+                std::filesystem::remove(irFilePath, ec);
+            }
             std::cout << "\033[32m✓\033[0m Built \033[1m" << outputExePath << "\033[0m successfully (" << optLevel;
             if (!compileOpts.targetTriple.empty()) {
                 std::cout << ", target: " << compileOpts.targetTriple;
