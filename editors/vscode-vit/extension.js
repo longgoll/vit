@@ -7,16 +7,18 @@ let client;
 let statusBarItem;
 let vitTerminal;
 
-function findLspExecutable(context) {
+function findLspExecutable(context, outputChannel) {
     const config = vscode.workspace.getConfiguration('vit');
     const customPath = config.get('lsp.path');
     if (customPath && fs.existsSync(customPath)) {
+        if (outputChannel) outputChannel.appendLine(`[Vit LSP] Found LSP at customPath: ${customPath}`);
         return customPath;
     }
 
     if (context && typeof context.asAbsolutePath === 'function') {
         const bundledPath = context.asAbsolutePath('vit-lsp.exe');
         if (fs.existsSync(bundledPath)) {
+            if (outputChannel) outputChannel.appendLine(`[Vit LSP] Found LSP at bundledPath: ${bundledPath}`);
             return bundledPath;
         }
     }
@@ -32,6 +34,7 @@ function findLspExecutable(context) {
         ];
         for (const candidate of candidates) {
             if (fs.existsSync(candidate)) {
+                if (outputChannel) outputChannel.appendLine(`[Vit LSP] Found LSP in workspace candidate: ${candidate}`);
                 return candidate;
             }
         }
@@ -41,10 +44,12 @@ function findLspExecutable(context) {
     if (vitHome) {
         const candidate = path.join(vitHome, 'bin', 'vit-lsp.exe');
         if (fs.existsSync(candidate)) {
+            if (outputChannel) outputChannel.appendLine(`[Vit LSP] Found LSP at VIT_HOME: ${candidate}`);
             return candidate;
         }
     }
 
+    if (outputChannel) outputChannel.appendLine(`[Vit LSP] Fallback to system command 'vit-lsp'`);
     return 'vit-lsp';
 }
 
@@ -86,6 +91,8 @@ function updateStatusBar(status) {
     }
 }
 
+let outputChannel;
+
 async function startLspServer(context) {
     if (client) {
         try {
@@ -94,9 +101,13 @@ async function startLspServer(context) {
         client = null;
     }
 
+    if (!outputChannel) {
+        outputChannel = vscode.window.createOutputChannel('Vit Language Server');
+    }
+
     updateStatusBar('starting');
-    const lspPath = findLspExecutable(context);
-    console.log(`[Vit Extension] Launching LSP binary from: ${lspPath}`);
+    const lspPath = findLspExecutable(context, outputChannel);
+    outputChannel.appendLine(`[Vit Extension] Launching LSP binary from: ${lspPath}`);
 
     const serverOptions = {
         run: { command: lspPath, args: [] },
@@ -104,7 +115,8 @@ async function startLspServer(context) {
     };
 
     const clientOptions = {
-        documentSelector: [{ scheme: 'file', language: 'vit' }]
+        documentSelector: [{ scheme: 'file', language: 'vit' }],
+        outputChannel: outputChannel
     };
 
     try {
@@ -116,9 +128,9 @@ async function startLspServer(context) {
         );
         await client.start();
         updateStatusBar('ready');
-        console.log('[Vit Extension] Connected to vit-lsp successfully!');
+        outputChannel.appendLine('[Vit Extension] Connected to vit-lsp successfully!');
     } catch (e) {
-        console.log('[Vit Extension] LSP launch notice:', e.message);
+        outputChannel.appendLine(`[Vit Extension] LSP launch notice: ${e.message}`);
         updateStatusBar('ready'); // Keep status bar active via native fallback
     }
 }
