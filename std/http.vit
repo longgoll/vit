@@ -40,32 +40,10 @@ function parseHttpPath(rawReq: string): string {
 struct HttpServer {
     port: number,
 
-    function listen(port: number, routeHandler: (path: string, req: Request, res: Response) => void): void {
+    function listen(port: number): void {
         this.port = port;
         let listener = listenTcp("127.0.0.1", port);
         print("[VIT HTTP Server] Listening on http://127.0.0.1:" + port);
-
-        while (true) {
-            let stream = listener.accept();
-            let rawData = stream.read(4096);
-            if (rawData.length > 0) {
-                let method = parseHttpMethod(rawData);
-                let path = parseHttpPath(rawData);
-
-                let req: Request;
-                req.method = method;
-                req.path = path;
-                req.body = rawData;
-
-                let res: Response;
-                res.status = 200;
-                res.stream = stream;
-
-                routeHandler(path, req, res);
-            } else {
-                stream.close();
-            }
-        }
     }
 }
 
