@@ -1,0 +1,12 @@
+// VIT Standard Library: Crypto & Hashing Module (std/crypto.vit)
+
+extern function __vit_crypto_sha256(str: string): string;
+extern function __vit_crypto_md5(str: string): string;
+
+function sha256(str: string): string {
+    return __vit_crypto_sha256(str);
+}
+
+function md5(str: string): string {
+    return __vit_crypto_md5(str);
+}

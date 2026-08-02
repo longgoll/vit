@@ -1,0 +1,7 @@
+// VIT Standard Library: Process Module (std/process.vit)
+
+extern function __vit_process_exec(cmd: string): string;
+
+function exec(cmd: string): string {
+    return __vit_process_exec(cmd);
+}

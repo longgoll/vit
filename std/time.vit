@@ -1,0 +1,16 @@
+// VIT Standard Library: Time Module (std/time.vit)
+
+extern function __vit_time_now_ms(): number;
+extern function __vit_time_sleep_ms(ms: number): void;
+
+function now(): number {
+    return __vit_time_now_ms();
+}
+
+function timestamp(): number {
+    return __vit_time_now_ms();
+}
+
+function sleep(ms: number): void {
+    __vit_time_sleep_ms(ms);
+}

@@ -1,0 +1,42 @@
+import "std/io.vit";
+import "std/encoding.vit";
+import "std/crypto.vit";
+import "std/process.vit";
+import "std/testing.vit";
+
+function main(): number {
+    printLine("--- Testing VIT Standard Library Phase 2 Expansion ---");
+
+    // 1. Testing Base64 Encoding
+    let text = "Hello Vit Language!";
+    let encoded = base64Encode(text);
+    printLine("base64Encode: " + encoded);
+    assertEqual(encoded, "SGVsbG8gVml0IExhbmd1YWdlIQ==", "Base64 encode match");
+
+    let decoded = base64Decode(encoded);
+    printLine("base64Decode: " + decoded);
+    assertEqual(decoded, text, "Base64 decode should match original string");
+
+    // 2. Testing URL Encoding
+    let url = "https://vit-lang.org/search?q=fast compiler & JIT";
+    let urlEnc = urlEncode(url);
+    printLine("urlEncode: " + urlEnc);
+
+    let urlDec = urlDecode(urlEnc);
+    printLine("urlDecode: " + urlDec);
+    assertEqual(urlDec, url, "URL decode should match original URL");
+
+    // 3. Testing Crypto / Hash
+    let hash256 = sha256("vit");
+    printLine("sha256('vit'): " + hash256);
+
+    let hashMd5 = md5("vit");
+    printLine("md5('vit'): " + hashMd5);
+
+    // 4. Testing Process Exec
+    printLine("executing shell command 'echo Hello VIT Process':");
+    let cmdOut = exec("echo Hello VIT Process");
+    printLine(cmdOut);
+
+    return 0;
+}

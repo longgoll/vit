@@ -1,0 +1,27 @@
+// VIT Standard Library: Testing Module (std/testing.vit)
+
+extern function puts(str: string): number;
+
+function assertEqual(actual: string, expected: string, msg: string): void {
+    if (actual == expected) {
+        puts("[PASS] " + msg);
+    } else {
+        puts("[FAIL] " + msg);
+    }
+}
+
+function assertTrue(cond: boolean, msg: string): void {
+    if (cond) {
+        puts("[PASS] " + msg);
+    } else {
+        puts("[FAIL] " + msg);
+    }
+}
+
+function assertFalse(cond: boolean, msg: string): void {
+    if (!cond) {
+        puts("[PASS] " + msg);
+    } else {
+        puts("[FAIL] " + msg);
+    }
+}

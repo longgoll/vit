@@ -1,0 +1,55 @@
+import "std/io.vit";
+import "std/time.vit";
+import "std/path.vit";
+import "std/fs.vit";
+import "std/testing.vit";
+
+function main(): number {
+    printLine("--- Testing VIT Standard Library Expansion ---");
+
+    // 1. Testing Path Module
+    let p = pathJoin("dir1", "file.txt");
+    printLine("pathJoin: " + p);
+    assertEqual(p, "dir1/file.txt", "pathJoin should join paths with slash");
+
+    let b = pathBasename("a/b/c.vit");
+    printLine("pathBasename: " + b);
+    assertEqual(b, "c.vit", "pathBasename should return file name");
+
+    let ext = pathExtname("a/b/c.vit");
+    printLine("pathExtname: " + ext);
+    assertEqual(ext, ".vit", "pathExtname should return extension");
+
+    let dir = pathDirname("a/b/c.vit");
+    printLine("pathDirname: " + dir);
+    assertEqual(dir, "a/b", "pathDirname should return directory path");
+
+    // 2. Testing FS Module Directory Support
+    let testDir = "temp_test_dir";
+    let okDir = createDir(testDir);
+    printLine("createDir result:");
+    assertTrue(okDir, "createDir should return true");
+
+    let entries = readDir(".");
+    printLine("readDir contents snippet:");
+    printLine(entries);
+    assertTrue(exists(testDir), "exists should detect newly created directory");
+
+    // Cleanup temp dir
+    removeFile(testDir);
+
+    // 3. Testing Time Module
+    let start = now();
+    printLine("time.now start:");
+    print(start);
+    sleep(100);
+    let end = now();
+    printLine("time.now end:");
+    print(end);
+    let diff = end - start;
+    printLine("time elapsed ms:");
+    print(diff);
+    assertTrue(diff >= 50.0, "sleep should pause for time duration");
+
+    return 0;
+}

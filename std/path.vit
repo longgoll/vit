@@ -1,0 +1,22 @@
+// VIT Standard Library: Path Utilities Module (std/path.vit)
+
+extern function __vit_path_join(p1: string, p2: string): string;
+extern function __vit_path_basename(path: string): string;
+extern function __vit_path_extname(path: string): string;
+extern function __vit_path_dirname(path: string): string;
+
+function pathJoin(p1: string, p2: string): string {
+    return __vit_path_join(p1, p2);
+}
+
+function pathBasename(path: string): string {
+    return __vit_path_basename(path);
+}
+
+function pathExtname(path: string): string {
+    return __vit_path_extname(path);
+}
+
+function pathDirname(path: string): string {
+    return __vit_path_dirname(path);
+}

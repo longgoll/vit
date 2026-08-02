@@ -1,0 +1,22 @@
+// VIT Standard Library: Encoding Module (std/encoding.vit)
+
+extern function __vit_encoding_base64_encode(str: string): string;
+extern function __vit_encoding_base64_decode(str: string): string;
+extern function __vit_encoding_url_encode(str: string): string;
+extern function __vit_encoding_url_decode(str: string): string;
+
+function base64Encode(str: string): string {
+    return __vit_encoding_base64_encode(str);
+}
+
+function base64Decode(str: string): string {
+    return __vit_encoding_base64_decode(str);
+}
+
+function urlEncode(str: string): string {
+    return __vit_encoding_url_encode(str);
+}
+
+function urlDecode(str: string): string {
+    return __vit_encoding_url_decode(str);
+}

@@ -175,6 +175,10 @@ bool NativeCompiler::compileIRWithOptions(const std::string& irFilePath, const s
     addRtCandidate(rtPath, exeDir, "kernel_bypass_rt.c");
     addRtCandidate(rtPath, exeDir, "fs_rt.c");
     addRtCandidate(rtPath, exeDir, "string_rt.c");
+    addRtCandidate(rtPath, exeDir, "time_rt.c");
+    addRtCandidate(rtPath, exeDir, "path_rt.c");
+    addRtCandidate(rtPath, exeDir, "encoding_rt.c");
+    addRtCandidate(rtPath, exeDir, "process_rt.c");
 
     std::string gccPath = detectGCC();
     std::string linkerBinary = gccPath.empty() ? clangExecutablePath : gccPath;

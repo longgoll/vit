@@ -6,6 +6,8 @@ extern function __vit_fs_append_file(path: string, content: string): number;
 extern function __vit_fs_exists(path: string): number;
 extern function __vit_fs_remove(path: string): number;
 extern function __vit_fs_size(path: string): number;
+extern function __vit_fs_mkdir(path: string): number;
+extern function __vit_fs_read_dir(path: string): string;
 
 function readFile(path: string): string {
     return __vit_fs_read_file(path);
@@ -34,3 +36,13 @@ function removeFile(path: string): boolean {
 function fileSize(path: string): number {
     return __vit_fs_size(path);
 }
+
+function createDir(path: string): boolean {
+    let res = __vit_fs_mkdir(path);
+    return res > 0;
+}
+
+function readDir(path: string): string {
+    return __vit_fs_read_dir(path);
+}
+

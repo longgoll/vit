@@ -99,7 +99,7 @@ std::string JITEngine::getOrBuildRuntimeArchive(NativeCompiler& compiler) {
         "collections_rt.c", "concurrency_rt.c", "net_rt.c",
         "memory_rt.c", "async_iouring_rt.c", "http_parser_simd.c",
         "simd_json_rt.c", "slab_allocator_rt.c", "kernel_bypass_rt.c",
-        "fs_rt.c", "string_rt.c"
+        "fs_rt.c", "string_rt.c", "time_rt.c", "path_rt.c", "encoding_rt.c", "process_rt.c"
     };
 
     std::string rtSrcDir = "";
