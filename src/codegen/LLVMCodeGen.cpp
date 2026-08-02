@@ -192,13 +192,18 @@ void LLVMCodeGen::visit(ProgramASTNode* node) {
     }
 
 
-    // Pass 2: Register top-level function return types
+    // Pass 2: Register top-level function return types and param types
     for (const auto& func : node->getFunctions()) {
         if (func->getIsAsync()) {
             functionReturnTypes[func->getName()] = "Promise";
         } else {
             functionReturnTypes[func->getName()] = func->getReturnType();
         }
+        std::vector<std::string> pTypes;
+        for (const auto& p : func->getParams()) {
+            pTypes.push_back(p.typeName);
+        }
+        functionParamTypes[func->getName()] = pTypes;
     }
 
     // Pass 3: Emit IR for struct methods and functions
@@ -914,8 +919,12 @@ void LLVMCodeGen::visit(BinaryOpASTNode* node) {
             irStream << resultReg << " = add i64 " << lhs << ", " << rhs << "\n";
             lastResultType = "int";
         } else {
+            std::string dLhs = (lhsType == "int") ? newReg() : lhs;
+            if (lhsType == "int") { emitIndent(); irStream << dLhs << " = sitofp i64 " << lhs << " to double\n"; }
+            std::string dRhs = (rhsType == "int") ? newReg() : rhs;
+            if (rhsType == "int") { emitIndent(); irStream << dRhs << " = sitofp i64 " << rhs << " to double\n"; }
             emitIndent();
-            irStream << resultReg << " = fadd double " << lhs << ", " << rhs << "\n";
+            irStream << resultReg << " = fadd double " << dLhs << ", " << dRhs << "\n";
             lastResultType = "number";
         }
     } else if (op == "-") {
@@ -924,8 +933,12 @@ void LLVMCodeGen::visit(BinaryOpASTNode* node) {
             irStream << resultReg << " = sub i64 " << lhs << ", " << rhs << "\n";
             lastResultType = "int";
         } else {
+            std::string dLhs = (lhsType == "int") ? newReg() : lhs;
+            if (lhsType == "int") { emitIndent(); irStream << dLhs << " = sitofp i64 " << lhs << " to double\n"; }
+            std::string dRhs = (rhsType == "int") ? newReg() : rhs;
+            if (rhsType == "int") { emitIndent(); irStream << dRhs << " = sitofp i64 " << rhs << " to double\n"; }
             emitIndent();
-            irStream << resultReg << " = fsub double " << lhs << ", " << rhs << "\n";
+            irStream << resultReg << " = fsub double " << dLhs << ", " << dRhs << "\n";
             lastResultType = "number";
         }
     } else if (op == "*") {
@@ -934,8 +947,12 @@ void LLVMCodeGen::visit(BinaryOpASTNode* node) {
             irStream << resultReg << " = mul i64 " << lhs << ", " << rhs << "\n";
             lastResultType = "int";
         } else {
+            std::string dLhs = (lhsType == "int") ? newReg() : lhs;
+            if (lhsType == "int") { emitIndent(); irStream << dLhs << " = sitofp i64 " << lhs << " to double\n"; }
+            std::string dRhs = (rhsType == "int") ? newReg() : rhs;
+            if (rhsType == "int") { emitIndent(); irStream << dRhs << " = sitofp i64 " << rhs << " to double\n"; }
             emitIndent();
-            irStream << resultReg << " = fmul double " << lhs << ", " << rhs << "\n";
+            irStream << resultReg << " = fmul double " << dLhs << ", " << dRhs << "\n";
             lastResultType = "number";
         }
     } else if (op == "/") {
@@ -944,8 +961,12 @@ void LLVMCodeGen::visit(BinaryOpASTNode* node) {
             irStream << resultReg << " = sdiv i64 " << lhs << ", " << rhs << "\n";
             lastResultType = "int";
         } else {
+            std::string dLhs = (lhsType == "int") ? newReg() : lhs;
+            if (lhsType == "int") { emitIndent(); irStream << dLhs << " = sitofp i64 " << lhs << " to double\n"; }
+            std::string dRhs = (rhsType == "int") ? newReg() : rhs;
+            if (rhsType == "int") { emitIndent(); irStream << dRhs << " = sitofp i64 " << rhs << " to double\n"; }
             emitIndent();
-            irStream << resultReg << " = fdiv double " << lhs << ", " << rhs << "\n";
+            irStream << resultReg << " = fdiv double " << dLhs << ", " << dRhs << "\n";
             lastResultType = "number";
         }
     } else if (op == ">" || op == "<" || op == "==" || op == "!=" || op == ">=" || op == "<=") {
@@ -992,8 +1013,13 @@ void LLVMCodeGen::visit(BinaryOpASTNode* node) {
             else if (op == ">=") condCode = "oge";
             else if (op == "<=") condCode = "ole";
 
+            std::string dLhs = (lhsType == "int") ? newReg() : lhs;
+            if (lhsType == "int") { emitIndent(); irStream << dLhs << " = sitofp i64 " << lhs << " to double\n"; }
+            std::string dRhs = (rhsType == "int") ? newReg() : rhs;
+            if (rhsType == "int") { emitIndent(); irStream << dRhs << " = sitofp i64 " << rhs << " to double\n"; }
+
             emitIndent();
-            irStream << resultReg << " = fcmp " << condCode << " double " << lhs << ", " << rhs << "\n";
+            irStream << resultReg << " = fcmp " << condCode << " double " << dLhs << ", " << dRhs << "\n";
             lastResultType = "boolean";
         }
     }
@@ -1315,6 +1341,34 @@ void LLVMCodeGen::visit(CallExprASTNode* node) {
         std::string retType = it->second;
         std::string llvmRetType = getLLVMType(retType);
 
+        auto paramIt = functionParamTypes.find(node->getCallee());
+
+        std::vector<std::string> castedArgRegs;
+        std::vector<std::string> castedArgTypes;
+
+        for (size_t i = 0; i < argRegs.size(); ++i) {
+            std::string expectedType = (paramIt != functionParamTypes.end() && i < paramIt->second.size()) ? paramIt->second[i] : argTypes[i];
+            std::string expectedLLVM = getLLVMType(expectedType);
+            std::string currentLLVM = getLLVMType(argTypes[i]);
+
+            if (expectedLLVM == "double" && currentLLVM == "i64") {
+                std::string convReg = newReg();
+                emitIndent();
+                irStream << convReg << " = sitofp i64 " << argRegs[i] << " to double\n";
+                castedArgRegs.push_back(convReg);
+                castedArgTypes.push_back("double");
+            } else if (expectedLLVM == "i64" && currentLLVM == "double") {
+                std::string convReg = newReg();
+                emitIndent();
+                irStream << convReg << " = fptosi double " << argRegs[i] << " to i64\n";
+                castedArgRegs.push_back(convReg);
+                castedArgTypes.push_back("i64");
+            } else {
+                castedArgRegs.push_back(argRegs[i]);
+                castedArgTypes.push_back(expectedLLVM);
+            }
+        }
+
         std::string callReg = "";
         emitIndent();
         if (llvmRetType != "void") {
@@ -1322,10 +1376,9 @@ void LLVMCodeGen::visit(CallExprASTNode* node) {
             irStream << callReg << " = ";
         }
         irStream << "call " << llvmRetType << " @" << node->getCallee() << "(";
-        for (size_t i = 0; i < argRegs.size(); ++i) {
-            std::string pType = getLLVMType(argTypes[i]);
-            irStream << pType << " " << argRegs[i];
-            if (i + 1 < argRegs.size()) irStream << ", ";
+        for (size_t i = 0; i < castedArgRegs.size(); ++i) {
+            irStream << castedArgTypes[i] << " " << castedArgRegs[i];
+            if (i + 1 < castedArgRegs.size()) irStream << ", ";
         }
         irStream << ")\n";
 

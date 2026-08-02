@@ -459,22 +459,91 @@ void LSPServer::handleHover(const std::string& id, const std::string& uri, int l
     sendResponse(id, hoverResult);
 }
 
+static std::string getLinePrefix(const std::string& content, int line, int character) {
+    std::stringstream ss(content);
+    std::string l;
+    int curLine = 0;
+    while (std::getline(ss, l)) {
+        if (curLine == line) {
+            if (!l.empty() && l.back() == '\r') l.pop_back();
+            if (character > 0 && character <= (int)l.length()) {
+                return l.substr(0, character);
+            }
+            return l;
+        }
+        curLine++;
+    }
+    return "";
+}
+
 void LSPServer::handleCompletion(const std::string& id, const std::string& uri, int line, int character) {
-    (void)line; (void)character;
     std::string content = m_documents[uri];
     auto symbols = extractDocumentSymbols(content);
+    std::string prefix = getLinePrefix(content, line, character);
 
     std::stringstream ss;
     ss << "{\"isIncomplete\":false,\"items\":[";
     bool first = true;
 
-    auto addItem = [&](const std::string& label, int kind, const std::string& detail) {
+    auto addItem = [&](const std::string& label, int kind, const std::string& detail, const std::string& insertText = "") {
         if (!first) ss << ",";
         first = false;
         ss << "{\"label\":\"" << escapeJson(label)
            << "\",\"kind\":" << kind
-           << ",\"detail\":\"" << escapeJson(detail) << "\"}";
+           << ",\"detail\":\"" << escapeJson(detail) << "\"";
+        if (!insertText.empty()) {
+            ss << ",\"insertText\":\"" << escapeJson(insertText) << "\",\"insertTextFormat\":2";
+        }
+        ss << "}";
     };
+
+    // Check dot completion: math., fs., str., string., sys.
+    if (prefix.rfind("math.", prefix.length() - 5) != std::string::npos || prefix.ends_with("math.")) {
+        addItem("sqrt", 3, "fn sqrt(x: number): number", "sqrt(${1:x})");
+        addItem("cos", 3, "fn cos(x: number): number", "cos(${1:x})");
+        addItem("sin", 3, "fn sin(x: number): number", "sin(${1:x})");
+        addItem("tan", 3, "fn tan(x: number): number", "tan(${1:x})");
+        addItem("abs", 3, "fn abs(x: number): number", "abs(${1:x})");
+        addItem("pow", 3, "fn pow(x: number, y: number): number", "pow(${1:x}, ${2:y})");
+        addItem("floor", 3, "fn floor(x: number): number", "floor(${1:x})");
+        addItem("ceil", 3, "fn ceil(x: number): number", "ceil(${1:x})");
+        addItem("round", 3, "fn round(x: number): number", "round(${1:x})");
+        addItem("log", 3, "fn log(x: number): number", "log(${1:x})");
+        addItem("exp", 3, "fn exp(x: number): number", "exp(${1:x})");
+        addItem("min", 3, "fn min(a: number, b: number): number", "min(${1:a}, ${2:b})");
+        addItem("max", 3, "fn max(a: number, b: number): number", "max(${1:a}, ${2:b})");
+        addItem("clamp", 3, "fn clamp(val: number, min: number, max: number): number", "clamp(${1:val}, ${2:min}, ${3:max})");
+        addItem("random", 3, "fn random(): number", "random()");
+        ss << "]}";
+        sendResponse(id, ss.str());
+        return;
+    }
+
+    if (prefix.rfind("fs.", prefix.length() - 3) != std::string::npos || prefix.ends_with("fs.")) {
+        addItem("readFile", 3, "fn readFile(path: string): string", "readFile(${1:path})");
+        addItem("writeFile", 3, "fn writeFile(path: string, content: string): boolean", "writeFile(${1:path}, ${2:content})");
+        addItem("appendFile", 3, "fn appendFile(path: string, content: string): boolean", "appendFile(${1:path}, ${2:content})");
+        addItem("exists", 3, "fn exists(path: string): boolean", "exists(${1:path})");
+        addItem("removeFile", 3, "fn removeFile(path: string): boolean", "removeFile(${1:path})");
+        addItem("fileSize", 3, "fn fileSize(path: string): number", "fileSize(${1:path})");
+        ss << "]}";
+        sendResponse(id, ss.str());
+        return;
+    }
+
+    if (prefix.rfind("str.", prefix.length() - 4) != std::string::npos || prefix.rfind("string.", prefix.length() - 7) != std::string::npos || prefix.ends_with("str.") || prefix.ends_with("string.")) {
+        addItem("length", 3, "fn length(str: string): number", "length(${1:str})");
+        addItem("charAt", 3, "fn charAt(str: string, index: number): string", "charAt(${1:str}, ${2:index})");
+        addItem("indexOf", 3, "fn indexOf(str: string, sub: string): number", "indexOf(${1:str}, ${2:sub})");
+        addItem("substring", 3, "fn substring(str: string, start: number, len: number): string", "substring(${1:str}, ${2:start}, ${3:len})");
+        addItem("startsWith", 3, "fn startsWith(str: string, prefix: string): boolean", "startsWith(${1:str}, ${2:prefix})");
+        addItem("endsWith", 3, "fn endsWith(str: string, suffix: string): boolean", "endsWith(${1:str}, ${2:suffix})");
+        addItem("trim", 3, "fn trim(str: string): string", "trim(${1:str})");
+        addItem("replace", 3, "fn replace(str: string, target: string, repl: string): string", "replace(${1:str}, ${2:target}, ${3:repl})");
+        ss << "]}";
+        sendResponse(id, ss.str());
+        return;
+    }
 
     static const std::vector<std::string> keywords = {
         "let", "const", "fn", "async", "await", "if", "else", "while", "for",
@@ -485,12 +554,17 @@ void LSPServer::handleCompletion(const std::string& id, const std::string& uri, 
         addItem(kw, 14, "Keyword " + kw);
     }
 
-    addItem("print", 3, "fn print(val: String): void");
-    addItem("println", 3, "fn println(val: String): void");
-    addItem("len", 3, "fn len(arr: Array): number");
-    addItem("fetch", 3, "fn fetch(url: String): Promise<Response>");
-    addItem("json_parse", 3, "fn json_parse(str: String): any");
-    addItem("json_stringify", 3, "fn json_stringify(val: any): String");
+    addItem("print", 3, "fn print(val: any): void", "print(${1:val})");
+    addItem("println", 3, "fn println(val: any): void", "println(${1:val})");
+    addItem("len", 3, "fn len(arr: Array): number", "len(${1:arr})");
+    addItem("readFile", 3, "fn readFile(path: string): string", "readFile(${1:path})");
+    addItem("writeFile", 3, "fn writeFile(path: string, content: string): boolean", "writeFile(${1:path}, ${2:content})");
+    addItem("exists", 3, "fn exists(path: string): boolean", "exists(${1:path})");
+    addItem("trim", 3, "fn trim(str: string): string", "trim(${1:str})");
+    addItem("replace", 3, "fn replace(str: string, target: string, repl: string): string", "replace(${1:str}, ${2:target}, ${3:repl})");
+    addItem("sqrt", 3, "fn sqrt(x: number): number", "sqrt(${1:x})");
+    addItem("min", 3, "fn min(a: number, b: number): number", "min(${1:a}, ${2:b})");
+    addItem("max", 3, "fn max(a: number, b: number): number", "max(${1:a}, ${2:b})");
 
     for (const auto& sym : symbols) {
         addItem(sym.name, sym.kind, sym.detail);
@@ -511,6 +585,7 @@ void LSPServer::handleDefinition(const std::string& id, const std::string& uri, 
     size_t targetLine = 0;
     size_t targetCol = 0;
     size_t len = 5;
+    bool found = false;
 
     if (!word.empty()) {
         for (const auto& sym : symbols) {
@@ -518,6 +593,7 @@ void LSPServer::handleDefinition(const std::string& id, const std::string& uri, 
                 targetLine = sym.line;
                 targetCol = sym.col;
                 len = sym.name.length();
+                found = true;
                 break;
             }
         }

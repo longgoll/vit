@@ -1,0 +1,49 @@
+import "std/math.vit";
+import "std/fs.vit";
+import "std/string.vit";
+
+function main(): number {
+    // 1. Test Math module
+    let val1 = 16;
+    let s = sqrt(val1);
+    print(s); // Expect: 4.000000
+
+    let m = max(10, 25);
+    print(m); // Expect: 25.000000
+
+    // 2. Test FS module
+    let testPath = "test_output.txt";
+    let wRes = writeFile(testPath, "Hello Vit Standard Library!");
+    if (wRes) {
+        print(1);
+    } else {
+        print(0);
+    }
+
+    let ex = exists(testPath);
+    if (ex) {
+        print(1);
+    } else {
+        print(0);
+    }
+
+    let content = readFile(testPath);
+    print(content); // Expect: Hello Vit Standard Library!
+
+    // 3. Test String module
+    let trimmed = trim("   Vit Language   ");
+    print(trimmed); // Expect: Vit Language
+
+    let hasPre = startsWith(trimmed, "Vit");
+    if (hasPre) {
+        print(1);
+    } else {
+        print(0);
+    }
+
+    let replaced = replace(trimmed, "Vit", "Fast Vit");
+    print(replaced); // Expect: Fast Vit
+
+    removeFile(testPath);
+    return 0;
+}

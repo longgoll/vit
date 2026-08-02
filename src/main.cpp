@@ -1,6 +1,7 @@
 #include "ast/ASTPrinter.h"
 #include "codegen/LLVMCodeGen.h"
 #include "codegen/NativeCompiler.h"
+#include "codegen/JITEngine.h"
 #include "codegen/EscapeAnalysis.h"
 #include "diagnostics/DiagnosticPrinter.h"
 #include "lexer/Lexer.h"
@@ -230,6 +231,7 @@ int main(int argc, char* argv[]) {
     bool emitAST = false;
     bool emitLLVM = false;
     bool customOutput = false;
+    bool useJIT = true;
 
     std::string firstArg = argv[1];
 
@@ -323,6 +325,10 @@ int main(int argc, char* argv[]) {
             emitAST = true;
         } else if (arg == "--emit-llvm") {
             emitLLVM = true;
+        } else if (arg == "--jit") {
+            useJIT = true;
+        } else if (arg == "--no-jit") {
+            useJIT = false;
         } else if (arg == "--save-temps") {
             // Keep temporary build files like output.ll
             emitLLVM = true;
@@ -454,6 +460,19 @@ int main(int argc, char* argv[]) {
             std::cout << "-------------------------------\n";
         }
 
+        // 4. Fast In-Memory Execution (JIT) for `vit run`
+        if (mode == Mode::RUN) {
+            if (compileOpts.targetTriple.find("wasm32") != std::string::npos || compileOpts.targetTriple.find("linux") != std::string::npos || compileOpts.targetTriple.find("darwin") != std::string::npos) {
+                std::cout << "\033[33m[VIT Notice]\033[0m Binary built for cross-target '" << compileOpts.targetTriple << "'. Skipping direct execution.\n";
+                return 0;
+            }
+
+            if (useJIT && !customOutput && compileOpts.targetTriple.empty()) {
+                JITEngine jitEngine;
+                return jitEngine.executeIR(llvmIR, sourceFilePath, compileOpts);
+            }
+        }
+
         // Save LLVM IR file
         std::ofstream outFile(irFilePath);
         if (outFile.is_open()) {
@@ -481,12 +500,7 @@ int main(int argc, char* argv[]) {
             std::cout << ").\n";
         }
 
-        // 4. If mode is RUN (or `vit run`), execute binary immediately
         if (mode == Mode::RUN) {
-            if (compileOpts.targetTriple.find("wasm32") != std::string::npos || compileOpts.targetTriple.find("linux") != std::string::npos || compileOpts.targetTriple.find("darwin") != std::string::npos) {
-                std::cout << "\033[33m[VIT Notice]\033[0m Binary built for cross-target '" << compileOpts.targetTriple << "'. Skipping direct execution.\n";
-                return 0;
-            }
             nativeCompiler.runExecutable(outputExePath);
             return 0;
         }

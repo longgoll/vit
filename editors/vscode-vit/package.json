@@ -2,7 +2,7 @@
   "name": "vscode-vit",
   "displayName": "Vit & Vito Language Support",
   "description": "Next-Gen IDE experience: Intellisense, CodeLens 1-Click Run, Doc Comments Hover, Signature Help, Inlay Hints, Rename Symbol, Formatting & LSP",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "publisher": "HongLong",
   "icon": "icon.png",
   "engines": {

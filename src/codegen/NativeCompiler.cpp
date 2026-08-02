@@ -173,6 +173,8 @@ bool NativeCompiler::compileIRWithOptions(const std::string& irFilePath, const s
     addRtCandidate(rtPath, exeDir, "simd_json_rt.c");
     addRtCandidate(rtPath, exeDir, "slab_allocator_rt.c");
     addRtCandidate(rtPath, exeDir, "kernel_bypass_rt.c");
+    addRtCandidate(rtPath, exeDir, "fs_rt.c");
+    addRtCandidate(rtPath, exeDir, "string_rt.c");
 
     std::string gccPath = detectGCC();
     std::string linkerBinary = gccPath.empty() ? clangExecutablePath : gccPath;

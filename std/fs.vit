@@ -1,24 +1,36 @@
-// std/fs.vit - Standard File System Library for Vit
+// VIT Standard Library: File System Module (std/fs.vit)
 
-extern function fopen(filename: string, mode: string): string;
-extern function fclose(file: string): number;
-extern function puts(str: string): number;
+extern function __vit_fs_read_file(path: string): string;
+extern function __vit_fs_write_file(path: string, content: string): number;
+extern function __vit_fs_append_file(path: string, content: string): number;
+extern function __vit_fs_exists(path: string): number;
+extern function __vit_fs_remove(path: string): number;
+extern function __vit_fs_size(path: string): number;
 
 function readFile(path: string): string {
-    let file = fopen(path, "r");
-    if (file != "") {
-        fclose(file);
-        return "File content read successfully";
-    }
-    return "";
+    return __vit_fs_read_file(path);
 }
 
 function writeFile(path: string, content: string): boolean {
-    let file = fopen(path, "w");
-    if (file != "") {
-        puts(content);
-        fclose(file);
-        return true;
-    }
-    return false;
+    let res = __vit_fs_write_file(path, content);
+    return res > 0;
+}
+
+function appendFile(path: string, content: string): boolean {
+    let res = __vit_fs_append_file(path, content);
+    return res > 0;
+}
+
+function exists(path: string): boolean {
+    let res = __vit_fs_exists(path);
+    return res > 0;
+}
+
+function removeFile(path: string): boolean {
+    let res = __vit_fs_remove(path);
+    return res > 0;
+}
+
+function fileSize(path: string): number {
+    return __vit_fs_size(path);
 }

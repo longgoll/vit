@@ -38,6 +38,7 @@ private:
     std::string currentFunctionReturnType;
     std::string currentBlockLabel;
     std::unordered_map<std::string, std::string> functionReturnTypes;
+    std::unordered_map<std::string, std::vector<std::string>> functionParamTypes;
     std::unordered_map<std::string, StructInfo> structs;
     std::unordered_set<std::string> enums;
     std::unordered_set<std::string> declaredFunctions;

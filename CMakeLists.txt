@@ -15,6 +15,7 @@ set(COMMON_SOURCES
     src/semantics/Monomorphizer.cpp
     src/codegen/LLVMCodeGen.cpp
     src/codegen/NativeCompiler.cpp
+    src/codegen/JITEngine.cpp
     src/codegen/EscapeAnalysis.cpp
     src/tools/LSP.cpp
     src/tools/PackageManager.cpp

@@ -1,13 +1,44 @@
-// Standard Library Module for String Utilities in VIT Compiler
-// C Runtime String Interop Declarations
+// VIT Standard Library: String Utilities Module (std/string.vit)
 
-extern function __vit_char_at(str: string, index: number): string;
-extern function __vit_strlen(str: string): number;
+extern function strlen(str: string): number;
+extern function __vit_str_char_at(str: string, index: number): string;
+extern function __vit_str_index_of(str: string, sub: string): number;
+extern function __vit_str_substring(str: string, start: number, length: number): string;
+extern function __vit_str_starts_with(str: string, prefix: string): number;
+extern function __vit_str_ends_with(str: string, suffix: string): number;
+extern function __vit_str_trim(str: string): string;
+extern function __vit_str_replace(str: string, target: string, replacement: string): string;
 
-function charAt(str: string, index: number): string {
-    return __vit_char_at(str, index);
+function length(str: string): number {
+    return strlen(str);
 }
 
-function stringLength(str: string): number {
-    return __vit_strlen(str);
+function charAt(str: string, index: number): string {
+    return __vit_str_char_at(str, index);
+}
+
+function indexOf(str: string, sub: string): number {
+    return __vit_str_index_of(str, sub);
+}
+
+function substring(str: string, start: number, length: number): string {
+    return __vit_str_substring(str, start, length);
+}
+
+function startsWith(str: string, prefix: string): boolean {
+    let res = __vit_str_starts_with(str, prefix);
+    return res > 0;
+}
+
+function endsWith(str: string, suffix: string): boolean {
+    let res = __vit_str_ends_with(str, suffix);
+    return res > 0;
+}
+
+function trim(str: string): string {
+    return __vit_str_trim(str);
+}
+
+function replace(str: string, target: string, replacement: string): string {
+    return __vit_str_replace(str, target, replacement);
 }
