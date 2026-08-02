@@ -5,16 +5,7 @@
       <stop offset="50%" stop-color="#FF8700" />
       <stop offset="100%" stop-color="#FFD000" />
     </linearGradient>
-    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1e1e24" />
-      <stop offset="100%" stop-color="#0f0f12" />
-    </linearGradient>
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="4" result="blur" />
-      <feComposite in="SourceGraphic" in2="blur" operator="over" />
-    </filter>
   </defs>
-  <rect width="100" height="100" rx="22" fill="url(#bgGradient)" />
-  <path d="M 28 25 L 44 75 L 56 75 L 72 25 L 58 25 L 50 56 L 42 25 Z" fill="url(#vitoGradient)" filter="url(#glow)" />
-  <path d="M 50 18 L 44 34 L 52 34 L 46 50 L 58 32 L 50 32 Z" fill="#FFFFFF" />
+  <path d="M 20 15 L 42 85 L 58 85 L 80 15 L 62 15 L 50 58 L 38 15 Z" fill="url(#vitoGradient)" />
+  <path d="M 50 8 L 41 30 L 52 30 L 44 52 L 60 28 L 50 28 Z" fill="#FFFFFF" />
 </svg>
