@@ -39,6 +39,7 @@
     #include <fcntl.h>
     #include <arpa/inet.h>
     #include <unistd.h>
+    #include <errno.h>
     #define SOCKET int
     #define INVALID_SOCKET -1
     #define SOCKET_ERROR -1
@@ -269,12 +270,6 @@ char* vit_net_recv_nonblock(double fd_dbl, double max_len_dbl) {
     g_fast_recv_buf[bytes_read] = '\0';
     return g_fast_recv_buf;
 #endif
-
-    // Windows path: recv blocking sau khi select confirm có data
-    int bytes_read = recv((SOCKET)fd, g_fast_recv_buf, max_len, 0);
-    if (bytes_read <= 0) { g_fast_recv_buf[0] = '\0'; }
-    else { g_fast_recv_buf[bytes_read] = '\0'; }
-    return g_fast_recv_buf;
 }
 
 // Check if a socket is still connected (peer đã close chưa)
