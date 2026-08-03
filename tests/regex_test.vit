@@ -1,0 +1,25 @@
+import { regexMatch } from "std/string";
+
+function main(): number {
+    let b1: boolean = regexMatch("12345", "^\\d+$");
+    let b2: boolean = regexMatch("abc", "^\\d+$");
+    let b3: boolean = regexMatch("hello-world-123", "^[a-z0-9-]+$");
+    let b4: boolean = regexMatch("HELLO_WORLD", "^[a-z0-9-]+$");
+    let b5: boolean = regexMatch("AlphaOnly", "^[a-zA-Z]+$");
+    let b6: boolean = regexMatch("Alpha123", "^[a-zA-Z]+$");
+
+    if (b1) { print("b1: true"); } else { print("b1: false"); }
+    if (b2) { print("b2: true"); } else { print("b2: false"); }
+    if (b3) { print("b3: true"); } else { print("b3: false"); }
+    if (b4) { print("b4: true"); } else { print("b4: false"); }
+    if (b5) { print("b5: true"); } else { print("b5: false"); }
+    if (b6) { print("b6: true"); } else { print("b6: false"); }
+
+    if (b1 && !b2 && b3 && !b4 && b5 && !b6) {
+        print("[PASS] All regexMatch test cases passed successfully!");
+        return 0;
+    }
+
+    print("[FAIL] regexMatch assertions failed.");
+    return 1;
+}

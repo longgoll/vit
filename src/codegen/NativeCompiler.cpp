@@ -44,17 +44,12 @@ std::string NativeCompiler::detectClang() {
         }
     }
 
-    // 2. Check common standard installation paths on Windows
-    std::vector<std::string> standardCandidatePaths = {
-        "C:\\LLVM\\bin\\clang.exe",
-        "C:\\Program Files\\LLVM\\bin\\clang.exe",
-        "C:\\Program Files (x86)\\LLVM\\bin\\clang.exe",
-        "C:\\msys64\\ucrt64\\bin\\clang.exe",
-        "C:\\msys64\\mingw64\\bin\\clang.exe"
-    };
-
     auto localAppDataCandidates = utils::Platform::getLocalAppDataToolCandidates();
-    standardCandidatePaths.insert(standardCandidatePaths.end(), localAppDataCandidates.begin(), localAppDataCandidates.end());
+    std::vector<std::string> standardCandidatePaths = localAppDataCandidates;
+    standardCandidatePaths.push_back("C:\\msys64\\ucrt64\\bin\\clang.exe");
+    standardCandidatePaths.push_back("C:\\msys64\\mingw64\\bin\\clang.exe");
+    standardCandidatePaths.push_back("C:\\LLVM\\bin\\clang.exe");
+    standardCandidatePaths.push_back("C:\\Program Files\\LLVM\\bin\\clang.exe");
 
     for (const auto& path : standardCandidatePaths) {
         std::ifstream f(path);
@@ -87,6 +82,7 @@ static std::string detectGCC() {
     if (isDetected) return cachedGCCPath;
 
     std::vector<std::string> candidates = {
+        "C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\bin\\gcc.exe",
         "C:\\msys64\\ucrt64\\bin\\gcc.exe",
         "C:\\msys64\\mingw64\\bin\\gcc.exe"
     };
@@ -101,13 +97,8 @@ static std::string detectGCC() {
             return cachedGCCPath;
         }
     }
-    if (std::system("gcc --version > NUL 2>&1") == 0) {
-        cachedGCCPath = "gcc";
-        isDetected = true;
-        return cachedGCCPath;
-    }
+    cachedGCCPath = "gcc";
     isDetected = true;
-    cachedGCCPath = "";
     return cachedGCCPath;
 }
 
@@ -252,11 +243,24 @@ bool NativeCompiler::compileIRWithOptions(const std::string& irFilePath, const s
         }
     }
 
-#ifdef _WIN32
     std::string sysLibs = (options.targetTriple.find("wasm32") != std::string::npos || options.targetTriple.find("linux") != std::string::npos || options.targetTriple.find("darwin") != std::string::npos) ? "" : "-lws2_32 ";
-#else
-    std::string sysLibs = "";
-#endif
+
+    // Detect MinGW sysroot for Clang to find C standard headers (stdio.h, stddef.h etc.)
+    std::string sysrootFlag = "";
+    auto localToolCandidates = utils::Platform::getLocalAppDataToolCandidates();
+    for (const auto& tpath : localToolCandidates) {
+        size_t binPos = tpath.find("\\bin\\");
+        if (binPos != std::string::npos) {
+            std::string prefix = tpath.substr(0, binPos);
+            std::ifstream testHeader(prefix + "\\include\\stdio.h");
+            if (testHeader.good()) {
+                sysrootFlag = "--sysroot=\"" + normalizeWinPath(prefix) + "\" ";
+                incFlags += "-I\"" + normalizeWinPath(prefix + "\\include") + "\" ";
+                incFlags += "-I\"" + normalizeWinPath(prefix + "\\x86_64-w64-mingw32\\include") + "\" ";
+                break;
+            }
+        }
+    }
 
     // Foreign target or WASM build
     if (!options.targetTriple.empty() && (options.targetTriple.find("wasm32") != std::string::npos || options.targetTriple.find("linux") != std::string::npos || options.targetTriple.find("darwin") != std::string::npos)) {
@@ -269,10 +273,15 @@ bool NativeCompiler::compileIRWithOptions(const std::string& irFilePath, const s
 #endif
     }
 
-    // Step 1: Compile LLVM IR (.ll) to object file (.o) using Clang
+    // Step 1: Compile LLVM IR (.ll) to object file (.o)
+    // When using GCC linker, use GCC itself (it understands LLVM IR via -x ir or direct pass)
+    // Actually GCC does not accept LLVM IR; we still need clang for step1, but with correct sysroot.
+    // If GCC is available, use it with -x assembler fallback. But LLVM IR needs clang.
+    // Key fix: pass the correct --sysroot or include dirs to clang when invoking step1.
+    std::string step1Compiler = clangExecutablePath;
     std::string step1OptFlags = (isGCCLinker && !options.ltoMode.empty()) ? "" : extraOptFlags;
     std::string step1TargetFlag = options.targetTriple.empty() ? "--target=x86_64-w64-mingw32 -Wno-override-module " : ("--target=" + options.targetTriple + " ");
-    std::string compileObjCmd = clangExecutablePath + " " + step1TargetFlag + options.optLevel + " " + step1OptFlags + " \"" + winIrPath + "\" -c -o \"" + winObjPath + "\"";
+    std::string compileObjCmd = step1Compiler + " " + step1TargetFlag + sysrootFlag + options.optLevel + " " + step1OptFlags + " \"" + winIrPath + "\" -c -o \"" + winObjPath + "\"";
 #ifdef _WIN32
     std::string step1Cmd = "cmd.exe /S /C \"" + compileObjCmd + "\"";
     int res1 = std::system(step1Cmd.c_str());
@@ -286,7 +295,7 @@ bool NativeCompiler::compileIRWithOptions(const std::string& irFilePath, const s
     }
 
     // Step 2: Link object file + C runtime files into executable using GCC or Clang
-    std::string linkCmd = linkerBinary + " " + targetFlag + options.optLevel + " " + extraOptFlags + incFlags + "\"" + winObjPath + "\" " + rtPath + sysLibs + "-o \"" + winExePath + "\"";
+    std::string linkCmd = linkerBinary + " " + targetFlag + sysrootFlag + options.optLevel + " " + extraOptFlags + incFlags + "\"" + winObjPath + "\" " + rtPath + sysLibs + "-o \"" + winExePath + "\"";
 #ifdef _WIN32
     std::string step2Cmd = "cmd.exe /S /C \"" + linkCmd + "\"";
     int res2 = std::system(step2Cmd.c_str());

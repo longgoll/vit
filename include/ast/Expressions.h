@@ -1,6 +1,7 @@
 #ifndef VIT_EXPRESSIONS_H
 #define VIT_EXPRESSIONS_H
 
+#include <cstdint>
 #include "ASTNode.h"
 #include "ASTVisitor.h"
 

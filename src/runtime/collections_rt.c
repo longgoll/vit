@@ -236,18 +236,16 @@ const char* __vit_json_escape_string(const char* str) {
     return buf;
 }
 
-static char g_char_at_buf[8][4];
-static int g_char_at_idx = 0;
-
 const char* __vit_char_at(const char* str, double index) {
-    if (!str) return "";
+    if (!str) return vit_strdup("");
     int idx = (int)index;
     size_t len = strlen(str);
-    if (idx < 0 || (size_t)idx >= len) return "";
-    g_char_at_idx = (g_char_at_idx + 1) % 8;
-    g_char_at_buf[g_char_at_idx][0] = str[idx];
-    g_char_at_buf[g_char_at_idx][1] = '\0';
-    return g_char_at_buf[g_char_at_idx];
+    if (idx < 0 || (size_t)idx >= len) return vit_strdup("");
+    char* res = (char*)malloc(2);
+    if (!res) return vit_strdup("");
+    res[0] = str[idx];
+    res[1] = '\0';
+    return res;
 }
 
 double __vit_strlen(const char* str) {

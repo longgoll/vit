@@ -142,9 +142,14 @@ std::string JITEngine::getOrBuildRuntimeArchive(NativeCompiler& compiler) {
         }
     }
 
-    std::string clangPath = compiler.getClangPath();
-    if (clangPath.empty()) {
-        clangPath = "gcc";
+    std::string clangPath = "gcc";
+    auto localTools = utils::Platform::getLocalAppDataToolCandidates();
+    for (const auto& tpath : localTools) {
+        std::ifstream f(tpath);
+        if (f.good()) {
+            clangPath = "\"" + tpath + "\"";
+            break;
+        }
     }
 
     std::filesystem::path tempDir = std::filesystem::temp_directory_path() / "vit_rt_build";
@@ -152,6 +157,18 @@ std::string JITEngine::getOrBuildRuntimeArchive(NativeCompiler& compiler) {
     std::filesystem::create_directories(tempDir, ec);
 
     std::string compileObjsCmd = clangPath + " -O2 -c ";
+    for (const auto& tpath : localTools) {
+        size_t binPos = tpath.find("\\bin\\");
+        if (binPos != std::string::npos) {
+            std::string prefix = tpath.substr(0, binPos);
+            std::ifstream testHeader(prefix + "\\include\\stdio.h");
+            if (testHeader.good()) {
+                compileObjsCmd += "-I\"" + utils::Platform::normalizePath(prefix + "\\include", true) + "\" ";
+                compileObjsCmd += "-I\"" + utils::Platform::normalizePath(prefix + "\\x86_64-w64-mingw32\\include", true) + "\" ";
+                break;
+            }
+        }
+    }
     if (!incDir.empty()) {
         compileObjsCmd += "-I\"" + utils::Platform::normalizePath(incDir, true) + "\" ";
     }
@@ -233,8 +250,33 @@ int JITEngine::executeIR(const std::string& llvmIR, const std::string& sourceFil
 
     std::string clangPath = compiler.getClangPath();
 
+    // Detect MinGW sysroot for Clang step1 (IR→obj), and GCC for step2 (obj→exe)
+    std::string sysrootPath = "";
+    std::string gccLinker = "";
+    auto localFastTools = utils::Platform::getLocalAppDataToolCandidates();
+    for (const auto& tpath : localFastTools) {
+        size_t binPos = tpath.find("\\bin\\");
+        if (binPos != std::string::npos) {
+            std::string prefix = tpath.substr(0, binPos);
+            std::ifstream testHeader(prefix + "\\include\\stdio.h");
+            if (testHeader.good()) {
+                sysrootPath = prefix;
+                break;
+            }
+        }
+        // Detect gcc.exe
+        if (tpath.find("gcc.exe") != std::string::npos) {
+            std::ifstream f(tpath);
+            if (f.good() && gccLinker.empty()) {
+                gccLinker = "\"" + tpath + "\"";
+            }
+        }
+    }
+    if (gccLinker.empty()) gccLinker = "gcc";
+
     // Step 1: Compile IR to Object file (fast -O0)
-    std::string step1Cmd = clangPath + " -O0 -w -Wno-override-module -c \"" + tempIR.string() + "\" -o \"" + tempObj.string() + "\"";
+    std::string sysrootArg = sysrootPath.empty() ? "" : "--sysroot=\"" + utils::Platform::normalizePath(sysrootPath, true) + "\" ";
+    std::string step1Cmd = clangPath + " -O0 -w --target=x86_64-w64-mingw32 -Wno-override-module " + sysrootArg + "-c \"" + tempIR.string() + "\" -o \"" + tempObj.string() + "\"";
 #ifdef _WIN32
     std::string sysStep1 = "cmd.exe /S /C \"" + step1Cmd + "\"";
     int res1 = std::system(sysStep1.c_str());
@@ -247,8 +289,8 @@ int JITEngine::executeIR(const std::string& llvmIR, const std::string& sourceFil
         return res1;
     }
 
-    // Step 2: Ultra-fast link with pre-compiled vit_runtime.a archive
-    std::string step2Cmd = clangPath + " -w \"" + tempObj.string() + "\" ";
+    // Step 2: Ultra-fast link with pre-compiled vit_runtime.a archive (use GCC — knows own headers)
+    std::string step2Cmd = gccLinker + " -w \"" + tempObj.string() + "\" ";
     if (!rtArchive.empty()) {
         step2Cmd += "\"" + rtArchive + "\" ";
     }

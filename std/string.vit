@@ -8,6 +8,7 @@ extern function __vit_str_starts_with(str: string, prefix: string): number;
 extern function __vit_str_ends_with(str: string, suffix: string): number;
 extern function __vit_str_trim(str: string): string;
 extern function __vit_str_replace(str: string, target: string, replacement: string): string;
+extern function __vit_str_regex_match(str: string, pattern: string): number;
 
 function length(str: string): number {
     return strlen(str);
@@ -41,4 +42,9 @@ function trim(str: string): string {
 
 function replace(str: string, target: string, replacement: string): string {
     return __vit_str_replace(str, target, replacement);
+}
+
+function regexMatch(str: string, pattern: string): boolean {
+    let res = __vit_str_regex_match(str, pattern);
+    return res > 0.0;
 }
