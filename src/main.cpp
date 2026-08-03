@@ -1,3 +1,8 @@
+// main.cpp — VIT compiler entry point (CLI argument dispatch)
+// resolveImports + setupPath → main_commands.cpp
+
+#include "main_shared.h"
+
 #include "ast/ASTPrinter.h"
 #include "codegen/LLVMCodeGen.h"
 #include "codegen/NativeCompiler.h"
@@ -79,165 +84,8 @@ void printVersion() {
     std::cout << "VIT Compiler v" << VIT_VERSION << "\n";
 }
 
-void setupPath() {
-    std::cout << "===========================================\n";
-    std::cout << "          VIT Compiler Setup               \n";
-    std::cout << "===========================================\n\n";
-
-#ifdef _WIN32
-    char buffer[MAX_PATH];
-    DWORD len = GetModuleFileNameA(NULL, buffer, MAX_PATH);
-    if (len > 0) {
-        std::string path(buffer, len);
-        size_t lastSlash = path.find_last_of("\\/");
-        if (lastSlash != std::string::npos) {
-            std::string exeDir = path.substr(0, lastSlash);
-            std::string escExeDir = exeDir;
-            for (size_t pos = 0; (pos = escExeDir.find("'", pos)) != std::string::npos; pos += 2) {
-                escExeDir.replace(pos, 1, "''");
-            }
-
-            // 1. PATH setup
-            std::cout << "[1/2] Setting up User PATH environment variable...\n";
-            std::string psCmd = "powershell -ExecutionPolicy Bypass -Command \"$p=[Environment]::GetEnvironmentVariable('PATH','User'); if ($p -split ';' -notcontains '" + escExeDir + "') { [Environment]::SetEnvironmentVariable('PATH', $p + ';' + '" + escExeDir + "', 'User'); Write-Host '[VIT Setup] Successfully added " + escExeDir + " to User PATH!' -ForegroundColor Green } else { Write-Host '[VIT Setup] " + escExeDir + " is already in User PATH.' -ForegroundColor Yellow }\"";
-            std::system(psCmd.c_str());
-
-            // 2. Native Toolchain setup
-            std::cout << "\n[2/2] Checking Native Compiler Toolchain (Clang)...\n";
-            NativeCompiler compiler;
-            if (compiler.isClangAvailable()) {
-                std::cout << "[VIT Setup] Native Clang compiler is ready at: " << compiler.getClangPath() << "\n";
-            } else {
-                std::cout << "[VIT Setup] Clang compiler not found. Running bundled toolchain setup script...\n\n";
-                std::vector<std::string> scriptCandidates = {
-                    exeDir + "\\scripts\\bundle_tools.ps1",
-                    exeDir + "\\..\\scripts\\bundle_tools.ps1",
-                    exeDir + "\\..\\..\\scripts\\bundle_tools.ps1"
-                };
-
-                std::string foundScript = "";
-                for (const auto& scriptPath : scriptCandidates) {
-                    if (std::filesystem::exists(scriptPath)) {
-                        foundScript = scriptPath;
-                        break;
-                    }
-                }
-
-                if (!foundScript.empty()) {
-                    std::string bundleCmd = "powershell -ExecutionPolicy Bypass -File \"" + foundScript + "\"";
-                    std::system(bundleCmd.c_str());
-                } else {
-                    std::cout << "[VIT Setup] Could not find bundle_tools.ps1 script. Installing LLVM via winget...\n";
-                    std::string wingetCmd = "powershell -ExecutionPolicy Bypass -Command \"winget install --id LLVM.LLVM --accept-source-agreements --accept-package-agreements\"";
-                    std::system(wingetCmd.c_str());
-                }
-            }
-
-            std::cout << "\n[VIT Setup] Setup complete!\n";
-            return;
-        }
-    }
-#endif
-    std::cout << "[VIT Setup] Automatic setup is supported on Windows.\n";
-}
-
-static void resolveImports(ProgramASTNode* program, const std::string& currentFilePath,
-                           std::unordered_set<std::string>& visitedFiles, size_t depth = 0) {
-    if (depth > 100) {
-        throw ParseError("Exceeded maximum module import depth limit (100)", 1, 1);
-    }
-    std::string compilerDir = utils::Platform::getExeDir();
-    std::vector<std::unique_ptr<StatementNode>> remainingStmts;
-    for (auto& stmt : program->getTopLevelStatements()) {
-        if (stmt->getType() == NodeType::ImportDecl) {
-            auto importNode = static_cast<ImportASTNode*>(stmt.get());
-            std::string modPath = importNode->getModulePath();
-
-            // Get directory of current file for relative resolution
-            std::string currentDir = ".";
-            size_t lastSep = currentFilePath.find_last_of("/\\");
-            if (lastSep != std::string::npos) {
-                currentDir = currentFilePath.substr(0, lastSep);
-            }
-
-            // Strip leading "std/" or "std\" if user wrote `import "std/testing"`
-            std::string cleanModPath = modPath;
-            if (cleanModPath.rfind("std/", 0) == 0) {
-                cleanModPath = cleanModPath.substr(4);
-            } else if (cleanModPath.rfind("std\\", 0) == 0) {
-                cleanModPath = cleanModPath.substr(4);
-            }
-
-            std::vector<std::string> candidates = {
-                modPath,
-                modPath + ".vit",
-                currentDir + "/" + modPath,
-                currentDir + "/" + modPath + ".vit",
-                "./" + modPath,
-                "./" + modPath + ".vit",
-                "../" + modPath,
-                "../" + modPath + ".vit",
-                "../../" + modPath,
-                "../../" + modPath + ".vit",
-                // cleanModPath candidates
-                "std/" + cleanModPath + ".vit",
-                "../std/" + cleanModPath + ".vit",
-                "../../std/" + cleanModPath + ".vit",
-                compilerDir + "/std/" + cleanModPath + ".vit",
-                compilerDir + "/../std/" + cleanModPath + ".vit",
-                compilerDir + "/../../std/" + cleanModPath + ".vit"
-            };
-
-            std::string resolvedPath = "";
-            for (const auto& cand : candidates) {
-                std::error_code ecCheck;
-                if (std::filesystem::exists(cand, ecCheck)) {
-                    std::error_code ec;
-                    auto canon = std::filesystem::weakly_canonical(cand, ec);
-                    resolvedPath = ec ? cand : canon.string();
-                    break;
-                }
-            }
-
-            if (resolvedPath.empty()) {
-                throw ParseError("Could not resolve imported module '" + modPath + "'", 1, 1);
-            }
-
-            if (visitedFiles.count(resolvedPath)) {
-                continue; // Skip duplicate import (module cache)
-            }
-            visitedFiles.insert(resolvedPath);
-
-            std::ifstream modFile(resolvedPath);
-            std::stringstream modBuf;
-            modBuf << modFile.rdbuf();
-
-            Lexer modLexer(modBuf.str());
-            Parser modParser(std::move(modLexer));
-            auto modAST = modParser.parseProgram();
-
-            resolveImports(modAST.get(), resolvedPath, visitedFiles, depth + 1);
-
-            for (auto& func : modAST->getFunctions()) {
-                program->getFunctions().push_back(std::move(func));
-            }
-            for (auto& topStmt : modAST->getTopLevelStatements()) {
-                remainingStmts.push_back(std::move(topStmt));
-            }
-        } else {
-            remainingStmts.push_back(std::move(stmt));
-        }
-    }
-    program->getTopLevelStatements() = std::move(remainingStmts);
-}
-
-enum class Mode {
-    RUN,
-    BUILD,
-    HELP,
-    VERSION,
-    SETUP
-};
+// Declared in main_commands.cpp
+void setupPath();
 
 #ifdef _WIN32
 #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
@@ -265,7 +113,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    Mode mode = Mode::RUN; // Default mode if file passed directly
+    Mode mode = Mode::RUN;
     std::string sourceFilePath;
     std::string outputExePath;
     std::string irFilePath = "output.ll";
@@ -312,7 +160,6 @@ int main(int argc, char* argv[]) {
         return 0;
     } else if (firstArg == "test") {
         std::string testDir = (argc >= 3) ? argv[2] : "tests";
-        // Discover all *.test.vit and *_test.vit files
         std::vector<std::string> testFiles;
         try {
             namespace fs = std::filesystem;
@@ -327,7 +174,6 @@ int main(int argc, char* argv[]) {
                     }
                 }
             } else {
-                // If it's a file directly
                 testFiles.push_back(testDir);
             }
         } catch (...) {
@@ -351,11 +197,9 @@ int main(int argc, char* argv[]) {
         for (const auto& testFile : testFiles) {
             std::cout << "\033[1m▶ " << testFile << "\033[0m\n";
 
-            // Compile and run the test file; capture output
             std::string tempExe = testFile + ".test_runner.exe";
             std::string tempLL  = testFile + ".ll";
 
-            // Read file
             std::ifstream tf(testFile);
             if (!tf.is_open()) {
                 std::cout << "  \033[31m✗ Could not open: " << testFile << "\033[0m\n";
@@ -379,7 +223,6 @@ int main(int argc, char* argv[]) {
                 LLVMCodeGen codegen;
                 std::string ir = codegen.generateIR(ast.get());
 
-                // Write IR
                 { std::ofstream f(tempLL); f << ir; }
 
                 NativeCompiler nc;
@@ -389,12 +232,10 @@ int main(int argc, char* argv[]) {
                 if (!ok) {
                     std::cout << "  \033[31m✗ Compile error\033[0m\n";
                     totalFail++;
-                    // cleanup
                     std::remove(tempLL.c_str());
                     continue;
                 }
 
-                // Run executable and capture stdout via local temp file
                 std::string absExe = std::filesystem::absolute(tempExe).string();
                 std::string absTmp = std::filesystem::absolute(testFile + ".run.tmp").string();
 #ifdef _WIN32
@@ -408,7 +249,7 @@ int main(int argc, char* argv[]) {
                 std::string output((std::istreambuf_iterator<char>(outF)), std::istreambuf_iterator<char>());
                 outF.close();
                 std::remove(absTmp.c_str());
-                // Parse [PASS] / [FAIL] lines
+
                 std::istringstream outStream(output);
                 std::string outLine;
                 int filePasses = 0, fileFails = 0;
@@ -426,7 +267,6 @@ int main(int argc, char* argv[]) {
                 totalPass += filePasses;
                 totalFail += fileFails;
 
-                // cleanup
                 std::remove(tempLL.c_str());
                 std::remove(tempExe.c_str());
 
@@ -478,7 +318,6 @@ int main(int argc, char* argv[]) {
 
     NativeCompileOptions compileOpts;
 
-    // Parse remaining arguments
     for (int i = startIndex; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "-h" || arg == "--help") {
@@ -519,7 +358,6 @@ int main(int argc, char* argv[]) {
         } else if (arg == "--no-jit") {
             useJIT = false;
         } else if (arg == "--save-temps") {
-            // Keep temporary build files like output.ll
             emitLLVM = true;
         } else if (arg[0] != '-') {
             if (sourceFilePath.empty()) {
@@ -545,7 +383,6 @@ int main(int argc, char* argv[]) {
         }
     } tempCleanup;
 
-    // Determine output paths based on execution mode
     if (mode == Mode::RUN) {
         auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         tempCleanup.path = std::filesystem::temp_directory_path() / ("vit_run_" + std::to_string(now));
@@ -575,7 +412,6 @@ int main(int argc, char* argv[]) {
         irFilePath = (parentDir.empty() ? std::filesystem::path("output.ll") : (parentDir / "output.ll")).string();
     }
 
-    // Read source code from file
     std::ifstream file(sourceFilePath);
     if (!file.is_open()) {
         std::cerr << "\033[31m[VIT Error]\033[0m Could not open source file '" << sourceFilePath << "'\n";
@@ -609,7 +445,7 @@ int main(int argc, char* argv[]) {
         auto programAST = parser.parseProgram();
         auto t1 = std::chrono::high_resolution_clock::now();
         if (compileOpts.verbose) {
-            std::cout << "\033[36m[VIT Verbose]\033[0m Lexing & Parsing: " 
+            std::cout << "\033[36m[VIT Verbose]\033[0m Lexing & Parsing: "
                       << std::chrono::duration<double, std::milli>(t1 - t0).count() << " ms\n";
         }
 
@@ -621,17 +457,17 @@ int main(int argc, char* argv[]) {
         resolveImports(programAST.get(), sourceFilePath, visitedFiles);
         t1 = std::chrono::high_resolution_clock::now();
         if (compileOpts.verbose) {
-            std::cout << "\033[36m[VIT Verbose]\033[0m Import Resolution: " 
+            std::cout << "\033[36m[VIT Verbose]\033[0m Import Resolution: "
                       << std::chrono::duration<double, std::milli>(t1 - t0).count() << " ms\n";
         }
 
-        // 1.5 Monomorphization Pass (Generics Resolution)
+        // 1.5 Monomorphization Pass
         t0 = std::chrono::high_resolution_clock::now();
         Monomorphizer monomorphizer;
         monomorphizer.process(programAST.get());
         t1 = std::chrono::high_resolution_clock::now();
         if (compileOpts.verbose) {
-            std::cout << "\033[36m[VIT Verbose]\033[0m Monomorphization: " 
+            std::cout << "\033[36m[VIT Verbose]\033[0m Monomorphization: "
                       << std::chrono::duration<double, std::milli>(t1 - t0).count() << " ms\n";
         }
 
@@ -642,7 +478,7 @@ int main(int argc, char* argv[]) {
             std::cout << "-----------------------------------\n";
         }
 
-        // 2. Semantic Analysis (Type & Scope Check)
+        // 2. Semantic Analysis
         t0 = std::chrono::high_resolution_clock::now();
         SemanticAnalyzer semanticAnalyzer;
         if (!semanticAnalyzer.analyze(programAST.get())) {
@@ -655,11 +491,11 @@ int main(int argc, char* argv[]) {
         }
         t1 = std::chrono::high_resolution_clock::now();
         if (compileOpts.verbose) {
-            std::cout << "\033[36m[VIT Verbose]\033[0m Semantic Analysis: " 
+            std::cout << "\033[36m[VIT Verbose]\033[0m Semantic Analysis: "
                       << std::chrono::duration<double, std::milli>(t1 - t0).count() << " ms\n";
         }
 
-        // 2.5 LLVM ARC Escape Analysis Pass (if enabled)
+        // 2.5 Escape Analysis (optional)
         if (compileOpts.enableEscapeAnalysis) {
             EscapeAnalyzer escapeAnalyzer;
             auto escapeResult = escapeAnalyzer.analyze(programAST.get());
@@ -672,7 +508,7 @@ int main(int argc, char* argv[]) {
         std::string llvmIR = codeGen.generateIR(programAST.get(), compileOpts.targetTriple);
         t1 = std::chrono::high_resolution_clock::now();
         if (compileOpts.verbose) {
-            std::cout << "\033[36m[VIT Verbose]\033[0m LLVM IR CodeGen: " 
+            std::cout << "\033[36m[VIT Verbose]\033[0m LLVM IR CodeGen: "
                       << std::chrono::duration<double, std::milli>(t1 - t0).count() << " ms\n";
         }
 
@@ -682,9 +518,11 @@ int main(int argc, char* argv[]) {
             std::cout << "-------------------------------\n";
         }
 
-        // 4. Fast In-Memory Execution (JIT) for `vit run`
+        // 4. JIT execution (vit run)
         if (mode == Mode::RUN) {
-            if (compileOpts.targetTriple.find("wasm32") != std::string::npos || compileOpts.targetTriple.find("linux") != std::string::npos || compileOpts.targetTriple.find("darwin") != std::string::npos) {
+            if (compileOpts.targetTriple.find("wasm32") != std::string::npos ||
+                compileOpts.targetTriple.find("linux") != std::string::npos ||
+                compileOpts.targetTriple.find("darwin") != std::string::npos) {
                 std::cout << "\033[33m[VIT Notice]\033[0m Binary built for cross-target '" << compileOpts.targetTriple << "'. Skipping direct execution.\n";
                 return 0;
             }
@@ -695,14 +533,14 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // Save LLVM IR file
+        // Save LLVM IR
         std::ofstream outFile(irFilePath);
         if (outFile.is_open()) {
             outFile << llvmIR;
             outFile.close();
         }
 
-        // 3. Native Binary Compilation
+        // 5. Native Binary Compilation
         NativeCompiler nativeCompiler;
         bool compileSuccess = nativeCompiler.compileIRWithOptions(irFilePath, outputExePath, compileOpts);
 
