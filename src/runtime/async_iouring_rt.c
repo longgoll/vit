@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <stdint.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -196,7 +197,32 @@ int vit_iouring_init(vit_iouring_t* ring, uint32_t depth) {
     if (depth == 0) depth = VIT_IOURING_QUEUE_DEPTH;
 
 #if defined(__linux__)
-    struct {
+    // VRI-02: Use correct kernel io_uring_params ABI (matching linux/io_uring.h).
+    // sq_off and cq_off are nested structs (struct io_sqring_offsets = 40 bytes each),
+    // NOT uint32_t[10]. Using the correct layout prevents EFAULT on io_uring_setup syscall.
+    struct vit_io_sqring_offsets {
+        uint32_t head;
+        uint32_t tail;
+        uint32_t ring_mask;
+        uint32_t ring_entries;
+        uint32_t flags;
+        uint32_t dropped;
+        uint32_t array;
+        uint32_t resv1;
+        uint64_t resv2;
+    };
+
+    struct vit_io_cqring_offsets {
+        uint32_t head;
+        uint32_t tail;
+        uint32_t ring_mask;
+        uint32_t ring_entries;
+        uint32_t overflow;
+        uint32_t cqes;
+        uint64_t resv[2];
+    };
+
+    struct vit_io_uring_params {
         uint32_t sq_entries;
         uint32_t cq_entries;
         uint32_t flags;
@@ -205,8 +231,8 @@ int vit_iouring_init(vit_iouring_t* ring, uint32_t depth) {
         uint32_t features;
         uint32_t wq_fd;
         uint32_t resv[3];
-        uint32_t sq_off[10];
-        uint32_t cq_off[10];
+        struct vit_io_sqring_offsets sq_off;
+        struct vit_io_cqring_offsets cq_off;
     } p;
     memset(&p, 0, sizeof(p));
 
@@ -236,6 +262,7 @@ int vit_iouring_init(vit_iouring_t* ring, uint32_t depth) {
     ring->is_fallback = 1;
     return 0;
 }
+
 
 int vit_iouring_submit_and_wait(vit_iouring_t* ring, uint32_t wait_nr) {
     if (!ring) return -1;
@@ -328,16 +355,31 @@ int vit_iouring_group_start(vit_iouring_worker_group_t* group, void (*handler)(i
 
 void vit_iouring_group_stop(vit_iouring_worker_group_t* group) {
     if (!group) return;
+    // Signal all workers to stop
     for (int i = 0; i < group->num_workers; i++) {
         if (group->workers[i].running) {
             group->workers[i].running = 0;
             if (group->workers[i].listen_fd >= 0) {
                 vit_net_socket_close((double)group->workers[i].listen_fd);
+                group->workers[i].listen_fd = -1;
             }
-            vit_iouring_cleanup(&group->workers[i].ring);
         }
+    }
+    // Join all threads before freeing memory (VRI-03: prevent UAF)
+    for (int i = 0; i < group->num_workers; i++) {
+        if (group->workers[i].thread_handle) {
+#ifdef _WIN32
+            WaitForSingleObject((HANDLE)group->workers[i].thread_handle, 5000);
+            CloseHandle((HANDLE)group->workers[i].thread_handle);
+#else
+            pthread_join((pthread_t)(uintptr_t)group->workers[i].thread_handle, NULL);
+#endif
+            group->workers[i].thread_handle = NULL;
+        }
+        vit_iouring_cleanup(&group->workers[i].ring);
     }
     free(group->workers);
     free(group);
     vit_net_cleanup();
 }
+

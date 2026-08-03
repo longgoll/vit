@@ -10,8 +10,16 @@ extern function __vit_str_trim(str: string): string;
 extern function __vit_str_replace(str: string, target: string, replacement: string): string;
 extern function __vit_str_regex_match(str: string, pattern: string): number;
 
+// RI-11/VRI-09: VIT strings are UTF-8 encoded C char* (NOT UTF-16).
+// strlen() returns byte count, which equals UTF-8 byte length.
+// This is CORRECT for HTTP Content-Length (RFC 7230: byte count, not char count).
+// byteLength() is an explicit alias to document this intent.
 function length(str: string): number {
-    return strlen(str);
+    return strlen(str);  // byte count = UTF-8 byte length ✓
+}
+
+function byteLength(str: string): number {
+    return strlen(str);  // explicit: byte count for HTTP Content-Length
 }
 
 function charAt(str: string, index: number): string {

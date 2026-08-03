@@ -1,3 +1,5 @@
+#ifdef _WIN32
+
 #include "concurrency_rt.h"
 
 // Forward C runtime and Win32 declarations to avoid system header dependency issues
@@ -188,3 +190,5 @@ void vit_task_spawn(void (*func)(void*), void* arg) {
     HANDLE hThread = CreateThread(NULL, 0, win32_thread_proc, larg, 0, NULL);
     if (hThread) CloseHandle(hThread);
 }
+
+#endif /* _WIN32 */

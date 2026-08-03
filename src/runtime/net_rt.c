@@ -49,7 +49,15 @@ static int g_net_initialized = 0;
 
 // Thread-local static buffer pool to eliminate dynamic malloc/free overhead per request
 #define FAST_BUFFER_SIZE 8192
-static _Thread_local char g_fast_recv_buf[FAST_BUFFER_SIZE + 1];
+// VRI-05: _Thread_local requires C11; use __thread as GCC/Clang portable fallback
+#if defined(_MSC_VER)
+  #define VIT_THREAD_LOCAL __declspec(thread)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+  #define VIT_THREAD_LOCAL _Thread_local
+#else
+  #define VIT_THREAD_LOCAL __thread
+#endif
+static VIT_THREAD_LOCAL char g_fast_recv_buf[FAST_BUFFER_SIZE + 1];
 
 void vit_net_init(void) {
     if (g_net_initialized) return;
@@ -296,3 +304,36 @@ double vit_net_socket_is_connected(double fd_dbl) {
     return 1.0; // có data, còn sống
 #endif
 }
+
+// RI-02 + RI-07: Get effective CPU count for multi-worker scaling.
+// Reads cgroup v2 cpu.max quota first (Docker --cpus), falls back to sysconf.
+// This prevents spawning 28 workers when container has --cpus=8, which wastes context switching.
+double vit_sysconf_nprocs(void) {
+#if defined(__linux__)
+    // Try cgroup v2 cpu.max: "quota period\n" or "max period\n"
+    FILE* f = fopen("/sys/fs/cgroup/cpu.max", "r");
+    if (f) {
+        char quota_str[32] = {0};
+        long quota = -1, period = 100000;
+        if (fscanf(f, "%31s %ld", quota_str, &period) == 2) {
+            if (quota_str[0] != 'm') { // "max" means unlimited
+                quota = atol(quota_str);
+            }
+        }
+        fclose(f);
+        if (quota > 0 && period > 0) {
+            long cgroup_cores = (quota + period - 1) / period; // round up
+            if (cgroup_cores > 0) return (double)cgroup_cores;
+        }
+    }
+
+    long nprocs = sysconf(_SC_NPROCESSORS_ONLN);
+    if (nprocs > 0) return (double)nprocs;
+#elif defined(_WIN32)
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    return (double)si.dwNumberOfProcessors;
+#endif
+    return 4.0; // safe fallback
+}
+

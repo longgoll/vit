@@ -169,7 +169,12 @@ bool NativeCompiler::compileIRWithOptions(const std::string& irFilePath, const s
     std::string exeDir = utils::Platform::getExeDir();
     std::string rtPath = "";
     addRtCandidate(rtPath, exeDir, "collections_rt.c");
+    // VRI-12: Select correct concurrency implementation based on platform
+#ifdef _WIN32
     addRtCandidate(rtPath, exeDir, "concurrency_rt.c");
+#else
+    addRtCandidate(rtPath, exeDir, "concurrency_rt_posix.c");
+#endif
     addRtCandidate(rtPath, exeDir, "net_rt.c");
     addRtCandidate(rtPath, exeDir, "memory_rt.c");
     addRtCandidate(rtPath, exeDir, "async_iouring_rt.c");
@@ -211,7 +216,16 @@ bool NativeCompiler::compileIRWithOptions(const std::string& irFilePath, const s
     }
 
     if (options.marchNative) {
-        extraOptFlags += "-march=native -mtune=native ";
+        // VRI-07: Check if compiling for TFB/cross-platform deployment.
+        // TFB_COMPILE_SAFE=1 disables -march=native to prevent SIGILL on TFB server
+        // (build machine CPU != runtime machine CPU).
+        const char* tfbSafe = std::getenv("TFB_COMPILE_SAFE");
+        bool safeMode = (tfbSafe != nullptr && std::string(tfbSafe) == "1");
+        if (safeMode) {
+            extraOptFlags += "-march=x86-64-v3 -mtune=generic "; // AVX2+FMA, safe for Haswell+ TFB servers
+        } else {
+            extraOptFlags += "-march=native -mtune=native ";
+        }
     }
 
     std::string incFlags = "";

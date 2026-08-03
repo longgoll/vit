@@ -1,4 +1,10 @@
-FROM ubuntu:24.04
+# VIT Runtime Benchmark Dockerfile
+# VRI-11: Use debian:bookworm-slim (matches TFB environment) instead of ubuntu:24.04
+# RI-06: -march=x86-64-v3 instead of -march=native
+# VRI-05: -std=c11 for _Thread_local support
+# VRI-12: Include concurrency_rt_posix.c (Linux pthread implementation)
+
+FROM debian:bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -8,7 +14,6 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     clang \
-    wrk \
     curl \
     git \
     liburing-dev \
@@ -18,14 +23,17 @@ WORKDIR /app
 
 COPY . /app
 
-RUN gcc -O3 -march=native -flto -Iinclude -Isrc \
+RUN gcc -O3 -march=x86-64-v3 -flto -std=c11 \
+    -Iinclude -Isrc/runtime \
     test/Phase15/benchmark_server.c \
     src/runtime/memory_rt.c \
     src/runtime/async_iouring_rt.c \
     src/runtime/http_parser_simd.c \
     src/runtime/net_rt.c \
-    -pthread -o benchmark_server
+    src/runtime/concurrency_rt_posix.c \
+    src/runtime/slab_allocator_rt.c \
+    -pthread -luring -o benchmark_server
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "/app/benchmark_server 8080 16 & sleep 2 && wrk -t16 -c1000 -d10s --latency http://localhost:8080/json"]
+CMD ["/app/benchmark_server"]

@@ -4,6 +4,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#ifndef _WIN32
+#include <pthread.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,6 +35,9 @@ typedef struct VIT_CACHE_ALIGN {
     uint32_t free_head;
     uint32_t capacity;
     uint32_t allocated_count;
+#ifndef _WIN32
+    pthread_mutex_t mutex; // Protects free_head on multi-core (VRI-04)
+#endif
 } vit_slab_pool_t;
 
 vit_slab_pool_t* vit_slab_pool_create(uint32_t capacity);

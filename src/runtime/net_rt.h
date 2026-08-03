@@ -36,6 +36,10 @@ double vit_net_socket_keepalive(double fd, double enable);
 char*  vit_net_recv_nonblock(double fd, double max_len);
 double vit_net_socket_is_connected(double fd);
 
+// RI-02 + RI-07: Effective CPU count (cgroup quota-aware for Docker --cpus)
+double vit_sysconf_nprocs(void);
+
+
 #ifdef __cplusplus
 }
 #endif

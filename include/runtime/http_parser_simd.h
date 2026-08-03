@@ -31,8 +31,18 @@ typedef struct vit_http_request_span {
     vit_string_span_t body;
 } vit_http_request_span_t;
 
-// Vectorized SIMD Fast Scanning HTTP Request Parser
+// Vectorized SIMD Fast Scanning HTTP Request Parser (parses ONE request)
 int vit_http_parse_simd(const char* buf, size_t len, vit_http_request_span_t* req);
+
+// VRI-06: Batch pipelining parser — parse all HTTP/1.1 pipelined requests in a single buffer.
+// Returns number of requests parsed. Each req_out[i] points into buf (zero-copy spans).
+// next_offset_out receives the byte offset of unprocessed data after the last complete request.
+// max_requests: maximum entries in req_out array.
+int vit_http_parse_simd_batch(
+    const char* buf, size_t len,
+    vit_http_request_span_t* req_out, int max_requests,
+    size_t* next_offset_out
+);
 
 // Zero-copy Span comparison utilities
 int vit_span_equals(vit_string_span_t span, const char* str);

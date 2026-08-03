@@ -67,7 +67,7 @@ struct TcpListener {
 function listenTcp(host: string, port: number): TcpListener {
     let fd = vit_net_socket_create();
     vit_net_socket_bind(fd, host, port);
-    vit_net_socket_listen(fd, 128);
+    vit_net_socket_listen(fd, 65535);  // VRI-08: was 128, TFB needs 16K+ concurrent conns
     let listener: TcpListener;
     listener.fd = fd;
     return listener;

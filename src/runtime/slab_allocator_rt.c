@@ -1,6 +1,9 @@
 #include "slab_allocator_rt.h"
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
+#include <pthread.h>
+#endif
 
 vit_slab_pool_t* vit_slab_pool_create(uint32_t capacity) {
     if (capacity == 0) capacity = VIT_C100K_MAX_SLABS;
@@ -41,16 +44,27 @@ vit_slab_pool_t* vit_slab_pool_create(uint32_t capacity) {
         memset(&pool->slabs[i], 0, sizeof(vit_connection_slab_t));
     }
 
+#ifndef _WIN32
+    pthread_mutex_init(&pool->mutex, NULL); // VRI-04: thread-safe slab alloc/free
+#endif
+
     return pool;
 }
 
 vit_connection_slab_t* vit_slab_alloc(vit_slab_pool_t* pool) {
     if (!pool || pool->free_head == 0) return NULL;
 
+#ifndef _WIN32
+    pthread_mutex_lock(&pool->mutex);
+    if (pool->free_head == 0) { pthread_mutex_unlock(&pool->mutex); return NULL; }
+#endif
     uint32_t index = pool->free_indices[--pool->free_head];
     pool->allocated_count++;
     vit_connection_slab_t* slab = &pool->slabs[index];
     memset(slab, 0, sizeof(vit_connection_slab_t));
+#ifndef _WIN32
+    pthread_mutex_unlock(&pool->mutex);
+#endif
     return slab;
 }
 
@@ -59,8 +73,14 @@ void vit_slab_free(vit_slab_pool_t* pool, vit_connection_slab_t* slab) {
     ptrdiff_t diff = slab - pool->slabs;
     if (diff < 0 || diff >= (ptrdiff_t)pool->capacity) return;
 
+#ifndef _WIN32
+    pthread_mutex_lock(&pool->mutex);
+#endif
     pool->free_indices[pool->free_head++] = (uint32_t)diff;
     if (pool->allocated_count > 0) pool->allocated_count--;
+#ifndef _WIN32
+    pthread_mutex_unlock(&pool->mutex);
+#endif
 }
 
 size_t vit_slab_pool_memory_usage(const vit_slab_pool_t* pool) {
@@ -72,6 +92,9 @@ size_t vit_slab_pool_memory_usage(const vit_slab_pool_t* pool) {
 
 void vit_slab_pool_destroy(vit_slab_pool_t* pool) {
     if (!pool) return;
+#ifndef _WIN32
+    pthread_mutex_destroy(&pool->mutex);
+#endif
     if (pool->slabs) {
 #if defined(_WIN32) || defined(_WIN64)
         _aligned_free(pool->slabs);
